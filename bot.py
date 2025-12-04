@@ -877,34 +877,26 @@ async def main() -> None:
         print("Error: TELEGRAM_BOT_TOKEN not found in .env file.")
         return
 
-    # Increase session timeout to handle slow connections/uploads
-    # Configure TCPConnector for better stability
-    import aiohttp
-    from aiogram.client.session.aiohttp import AiohttpSession
+# Increase session timeout to handle slow connections/uploads
+# Configure TCPConnector for better stability
+import aiohttp
+from aiogram.client.session.aiohttp import AiohttpSession
 
-    class CustomAiohttpSession(AiohttpSession):
-        def __init__(self, connector: aiohttp.TCPConnector = None, **kwargs):
-            super().__init__(**kwargs)
-            self._connector = connector
+class CustomAiohttpSession(AiohttpSession):
+    def __init__(self, connector: aiohttp.TCPConnector = None, **kwargs):
+        super().__init__(**kwargs)
+        self._connector = connector
 
-        async def create_session(self) -> aiohttp.ClientSession:
-            if self._session is None or self._session.closed:
-                self._session = aiohttp.ClientSession(
-                    connector=self._connector,
-                    timeout=aiohttp.ClientTimeout(total=self.timeout),
-                    json_serialize=self.json_dumps,
-                )
-            return self._session
+    async def create_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(
+                connector=self._connector,
+                timeout=aiohttp.ClientTimeout(total=self.timeout),
+                json_serialize=self.json_dumps,
+            )
+        return self._session
 
-    connector = aiohttp.TCPConnector(
-        limit=100, 
-        limit_per_host=20, 
-        enable_cleanup_closed=True
-    )
-    session = CustomAiohttpSession(timeout=120.0, connector=connector)
-    bot = Bot(token=TOKEN, session=session)
-    
-async def scheduled_log_rotation():
+async def scheduled_log_rotation(bot: Bot):
     """
     Background task to send logs to admins at midnight and clear them.
     """
@@ -976,10 +968,24 @@ async def keep_alive():
     await site.start()
     logger.info(f"Keep-alive server started on port {port}")
 
-async def main():
+async def main() -> None:
+    """Start the bot."""
+    if not TOKEN or TOKEN == "your_telegram_bot_token_here":
+        print("Error: TELEGRAM_BOT_TOKEN not found in .env file.")
+        return
+
+    # Initialize Bot
+    connector = aiohttp.TCPConnector(
+        limit=100, 
+        limit_per_host=20, 
+        enable_cleanup_closed=True
+    )
+    session = CustomAiohttpSession(timeout=120.0, connector=connector)
+    bot = Bot(token=TOKEN, session=session)
+
     # Start background tasks
     asyncio.create_task(keep_alive())
-    asyncio.create_task(scheduled_log_rotation())
+    asyncio.create_task(scheduled_log_rotation(bot))
     asyncio.create_task(scheduled_maintenance(bot)) 
     
     # Start database flush task

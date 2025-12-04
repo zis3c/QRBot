@@ -973,9 +973,6 @@ async def main() -> None:
     if not TOKEN or TOKEN == "your_telegram_bot_token_here":
         print("Error: TELEGRAM_BOT_TOKEN not found in .env file.")
         return
-    
-    # DEBUG: Print masked token to verify what Render is seeing
-    print(f"DEBUG: Token loaded: '{TOKEN[:5]}...{TOKEN[-5:]}'", flush=True)
 
     # Initialize Bot
     connector = aiohttp.TCPConnector(

@@ -1,0 +1,28 @@
+# Secrets
+.env
+
+# Logs
+*.log
+bot.log
+error.log
+
+# Data (Local DB)
+bot_data.json
+stress_test_data.json
+monitor_report.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini

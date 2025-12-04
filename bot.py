@@ -1029,5 +1029,6 @@ async def main():
         logger.info("Bot stopped. Data saved and pool shutdown.")
 
 if __name__ == "__main__":
+    print("SYSTEM: Bot script starting...", flush=True)
     asyncio.run(main())
 

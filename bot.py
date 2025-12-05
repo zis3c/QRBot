@@ -955,18 +955,26 @@ async def keep_alive():
     from aiohttp import web
     
     async def handle(request):
+        # Log the ping so we know it's working
+        # logger.info(f"Health check received from {request.remote}")
         return web.Response(text="I am alive!")
 
     app = web.Application()
     app.router.add_get('/', handle)
+    app.router.add_get('/health', handle) # Add explicit health route
+    
     runner = web.AppRunner(app)
     await runner.setup()
     
     # Render provides the PORT environment variable
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000)) # Default to 10000 for Render
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    logger.info(f"Keep-alive server started on port {port}")
+    
+    logger.info(f"✅ Keep-alive server started on port {port}")
+    
+    # Keep the runner alive
+    return runner
 
 async def main() -> None:
     """Start the bot."""
@@ -984,7 +992,8 @@ async def main() -> None:
     bot = Bot(token=TOKEN, session=session)
 
     # Start background tasks
-    asyncio.create_task(keep_alive())
+    # Store runner to prevent GC
+    bot.web_runner = await keep_alive()
     asyncio.create_task(scheduled_log_rotation(bot))
     asyncio.create_task(scheduled_maintenance(bot)) 
     

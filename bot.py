@@ -415,6 +415,7 @@ async def process_encode_method(message: types.Message, state: FSMContext, bot: 
         await message.reply("🔒 *Security Check*\n\nPlease enter a password to encrypt this QR code:", parse_mode='Markdown', reply_markup=ReplyKeyboardRemove())
         return
 
+    data = await state.get_data()
     await state.clear()
     
     status_msg = await message.reply(strings.STATUS_GENERATING, reply_markup=ReplyKeyboardRemove())

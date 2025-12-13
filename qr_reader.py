@@ -112,12 +112,11 @@ def format_response(content, qr_type):
     """
     Formats the response string based on QR type.
     """
-    response = f"🔍 *QR Code Detected*\n\n"
+    response = ""
     
     if qr_type == 'URL':
         response += f"*Type:* URL 🌐\n"
-        response += f"*Content:* {content}\n\n"
-        response += f"Suggested Action: Open the link."
+        response += f"*Content:* {content}\n"
         
     elif qr_type == 'WiFi':
         wifi_data = parse_wifi_string(content)
@@ -125,8 +124,7 @@ def format_response(content, qr_type):
         response += f"*Details:*\n"
         response += f"SSID: `{wifi_data['SSID']}`\n"
         response += f"Password: `{wifi_data['Password']}`\n"
-        response += f"Encryption: {wifi_data['Type']}\n\n"
-        response += f"Suggested Action: Connect manually."
+        response += f"Encryption: {wifi_data['Type']}"
         
     elif qr_type == 'vCard':
         response += f"*Type:* Contact Card 👤\n\n"
@@ -148,13 +146,11 @@ def format_response(content, qr_type):
         if title: response += f"*Title:* {title}\n"
         if org: response += f"*Company:* {org}\n"
         if phone: response += f"*Phone:* {phone}\n"
-        if email: response += f"*Email:* {email}\n\n"
-        response += f"Suggested Action: Save contact manually."
+        if email: response += f"*Email:* {email}"
         
     else: # Text or Generic
         response += f"*Type:* Text 📝\n"
-        response += f"*Content:* {content}\n\n"
-        response += f"Suggested Action: Read content."
+        response += f"*Content:* {content}"
         
     return response
 

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: qrbot
+    env: docker
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: SENTINEL_KEY
+        sync: false

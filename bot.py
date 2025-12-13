@@ -412,7 +412,7 @@ async def process_encode_method(message: types.Message, state: FSMContext, bot: 
     if method == "Sentinel QR":
         await state.update_data(method=method)
         await state.set_state(EncodeQRStates.waiting_for_sentinel_password)
-        await message.reply("🔒 *Security Check*\n\nPlease enter a password to encrypt this QR code:", parse_mode='Markdown', reply_markup=ReplyKeyboardRemove())
+        await message.reply("🔒 *Security Check*\n\nPlease enter a password", parse_mode='Markdown', reply_markup=ReplyKeyboardRemove())
         return
 
     data = await state.get_data()
@@ -636,7 +636,7 @@ async def qr_reader_handler(message: types.Message, bot: Bot, state: FSMContext)
                 # It's a password-protected Sentinel QR
                 await state.set_state(QRReaderStates.waiting_for_password)
                 await state.update_data(sentinel_content=content)
-                await message.reply("🔒 *Sentinel QR Detected*\n\nThis QR code is password protected. Please enter the password to decrypt it:", parse_mode='Markdown')
+                await message.reply("🔒 *Sentinel QR Detected*\n\nPlease enter the password", parse_mode='Markdown')
                 return
             
             # Legacy check or global key check (optional, but requested to make changes)

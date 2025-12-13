@@ -600,10 +600,10 @@ async def qr_reader_command(message: types.Message, state: FSMContext):
 async def process_qr_image(message: types.Message, state: FSMContext, bot: Bot):
     """Handle photo upload for QR Reader."""
     await state.clear()
-    await qr_reader_handler(message, bot)
+    await qr_reader_handler(message, bot, state)
 
 @dp.message(F.photo & F.caption.startswith('/readerqr'))
-async def qr_reader_handler(message: types.Message, bot: Bot):
+async def qr_reader_handler(message: types.Message, bot: Bot, state: FSMContext):
     """Handle photo messages to read QR codes."""
     try:
         status_msg = await message.reply(strings.STATUS_SCANNING)

@@ -649,6 +649,12 @@ async def qr_reader_handler(message: types.Message, bot: Bot, state: FSMContext)
             
             qr_type = qr_reader.detect_type(content)
             response = qr_reader.format_response(content, qr_type)
+            
+            # Auto-decode check
+            fmt, decoded = qr_reader.try_detect_and_decode(content)
+            if fmt and decoded:
+                response += f"\n\n🔓 *Auto-Decoded ({fmt})*:\n`{decoded}`"
+                
             await message.reply(response, parse_mode='Markdown', disable_web_page_preview=True)
 
         elif status == 'multiple':

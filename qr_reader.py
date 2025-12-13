@@ -181,3 +181,41 @@ def try_decrypt_sentinel(content, password):
         return decrypted
     except:
         return None
+
+def try_detect_and_decode(content: str):
+    """
+    Attempts to detect and decode Base64 or Hex content.
+    Returns (format_name, decoded_text) or (None, None).
+    """
+    import base64
+    import re
+    
+    content = content.strip()
+    if not content:
+        return None, None
+        
+    # Try Hex
+    # Must be even length, only hex chars, and decode to utf-8 string
+    if len(content) % 2 == 0 and len(content) > 4: # Min length heuristic
+        if re.match(r'^[0-9a-fA-F]+$', content):
+             try:
+                 decoded = bytes.fromhex(content).decode('utf-8')
+                 # Heuristic: is it printable?
+                 if decoded.isprintable():
+                     return 'Hex', decoded
+             except:
+                 pass
+                 
+    # Try Base64
+    # B64 usually ends with = or ==, length % 4 == 0, and chars are A-Za-z0-9+/
+    if len(content) % 4 == 0 and len(content) > 4:
+        if re.match(r'^[A-Za-z0-9+/]+={0,2}$', content):
+            try:
+                decoded_bytes = base64.b64decode(content)
+                decoded = decoded_bytes.decode('utf-8')
+                if decoded.isprintable() and decoded != content:
+                    return 'Base64', decoded
+            except:
+                pass
+                
+    return None, None

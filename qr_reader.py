@@ -222,12 +222,13 @@ def try_detect_and_decode(content: str):
              decoded = codecs.decode(content, 'rot_13')
              # ROT13 is symmetric, so we just check if it's different and printable
              if decoded != content and decoded.isprintable():
-                 # To reduce noise, maybe we only return it if we are sure?
-                 # User explicitly asked for it, so let's return it.
-                 # But since ROT13(hello) = uryyb, and ROT13(uryyb) = hello.
-                 # Both look like text. 
-                 # We will return it as "ROT13 Candidate".
-                 return 'ROT13', decoded
+                 # Heuristic: Vowel check to avoid false positives (e.g. "superidol" -> garbage)
+                 # Only show if decoded text looks "more like text" (more vowels) than the input.
+                 def count_vowels(s):
+                     return sum(1 for c in s if c.lower() in 'aeiou')
+                 
+                 if count_vowels(decoded) > count_vowels(content):
+                     return 'ROT13', decoded
          except:
              pass
                 

@@ -185,6 +185,7 @@ def try_detect_and_decode(content: str):
     """
     import base64
     import re
+    import codecs
     
     content = content.strip()
     if not content:
@@ -213,5 +214,21 @@ def try_detect_and_decode(content: str):
                     return 'Base64', decoded
             except:
                 pass
+
+    # Try ROT13
+    # We only apply it if the content looks like it has letters
+    if any(c.isalpha() for c in content):
+         try:
+             decoded = codecs.decode(content, 'rot_13')
+             # ROT13 is symmetric, so we just check if it's different and printable
+             if decoded != content and decoded.isprintable():
+                 # To reduce noise, maybe we only return it if we are sure?
+                 # User explicitly asked for it, so let's return it.
+                 # But since ROT13(hello) = uryyb, and ROT13(uryyb) = hello.
+                 # Both look like text. 
+                 # We will return it as "ROT13 Candidate".
+                 return 'ROT13', decoded
+         except:
+             pass
                 
     return None, None

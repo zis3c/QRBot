@@ -46,7 +46,6 @@ ABOUT_MSG = """
 🤖 *About QRBot*\n
 Dev: Radzi Zamri
 Version: 1.0.0
-Style: Functional + English + Unique
 
 This bot is built to make generating QR codes easy for you.
 """

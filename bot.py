@@ -408,6 +408,7 @@ async def process_encode_text(message: types.Message, state: FSMContext):
 
 @dp.message(EncodeQRStates.waiting_for_method)
 async def process_encode_method(message: types.Message, state: FSMContext, bot: Bot):
+    method = message.text
     if method == "Sentinel QR":
         await state.update_data(method=method)
         await state.set_state(EncodeQRStates.waiting_for_sentinel_password)

@@ -25,7 +25,11 @@ A powerful and versatile Telegram bot for generating and reading QR codes. Built
 - Python 3.9+
 - A Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
 
-### Local Installation
+### Installation
+
+For detailed installation instructions on Windows, Linux, macOS, and Docker, please refer to the **[Installation Guide](INSTALLATION.md)**.
+
+### Quick Start (Local)
 
 1.  **Clone the repository**:
     ```bash
@@ -37,14 +41,9 @@ A powerful and versatile Telegram bot for generating and reading QR codes. Built
     ```bash
     pip install -r requirements.txt
     ```
-    *Note: You may need to install `zbar` libraries specifically for your OS for `pyzbar` to work.*
 
-3.  **Environment Configuration**:
-    Set the following environment variables (or rely on Render/Cloud provider secrets):
-    - `TELEGRAM_BOT_TOKEN`: Your Telegram Bot API Token.
-    - `ADMIN_IDS`: Comma-separated list of admin Telegram User IDs (e.g., `123456789,987654321`).
-
-4.  **Run the bot**:
+3.  **Configure & Run**:
+    Set `TELEGRAM_BOT_TOKEN` in your environment and run:
     ```bash
     python bot.py
     ```

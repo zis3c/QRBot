@@ -60,7 +60,7 @@ This project includes a `render.yaml` for one-click deployment on [Render](https
 
 1. Link your forked repository to Render.
 2. Add `TELEGRAM_BOT_TOKEN` and `ADMIN_IDS` in the Render dashboard under **Environment**.
-3. Deploy — the built-in keep-alive server prevents the instance from sleeping.
+3. Deploy. The built-in keep-alive server prevents the instance from sleeping.
 
 ## Project Structure
 
@@ -115,7 +115,7 @@ QRBot/
 1. **Authentication**: The bot connects to Telegram using a token issued by [@BotFather](https://t.me/BotFather) via the Aiogram framework.
 2. **Command Routing**: Incoming messages are matched to handlers by command or FSM state, enabling multi-step conversations.
 3. **QR Generation**: `qr_generator.py` encodes the user's input into the selected QR format, applies colour options, and renders the image in-memory.
-4. **Sentinel Encryption**: For Sentinel QR, the payload is AES-encrypted with the user's password before encoding — the key is never stored.
+4. **Sentinel Encryption**: For Sentinel QR, the payload is AES-encrypted with the user's password before encoding; the key is never stored.
 5. **QR Reading**: Images sent to the bot are passed to `qr_reader.py`, which decodes and returns the embedded data.
 6. **Admin Layer**: Admin commands are protected by a middleware that checks the sender's ID against `ADMIN_IDS` before execution.
 
@@ -125,4 +125,4 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

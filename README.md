@@ -8,6 +8,8 @@
 
 A powerful and versatile Telegram bot for generating and reading QR codes. Built with Python and Aiogram, it supports various QR types, custom styling, and secure encrypted QR codes.
 
+![QRBot Preview](preview.PNG)
+
 🔗 **Try it out on Telegram:** [**@PautQRBot**](https://t.me/PautQRBot)  
 📺 **How to use QRBot:** [**Watch on YouTube**](https://www.youtube.com/watch?v=uJM2nCFWCx4)
 
@@ -30,7 +32,7 @@ A powerful and versatile Telegram bot for generating and reading QR codes. Built
     - Light and Dark mode presets.
 - 🛠 **Admin Tools**: Broadcast messages, user stats, ban management, and system monitoring.
 
-## � Project Structure
+## 📂 Project Structure
 
 ```
 QRBot/
@@ -51,7 +53,7 @@ QRBot/
 └── CONTRIBUTING.md     # Contribution guidelines
 ```
 
-## �🚀 Deployment
+## 🚀 Deployment
 
 ### Prerequisites
 

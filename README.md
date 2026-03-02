@@ -7,7 +7,9 @@
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg)
 
-<img src="preview.png" alt="QRBot Preview" width="200">
+<div align="center">
+  <img src="preview.png" alt="QRBot Preview" width="200">
+</div>
 
 🔗 **Try it live:** [**@PautQRBot**](https://t.me/PautQRBot) · 📺 **Video tutorial:** [**Watch on YouTube**](https://www.youtube.com/watch?v=uJM2nCFWCx4)
 

@@ -694,20 +694,26 @@ async def process_reader_password(message: types.Message, state: FSMContext):
 async def scheduled_maintenance(bot: Bot):
     """Runs daily maintenance at 00:00 AM."""
     while True:
-        now = datetime.now()
-        # Calculate time until next midnight
-        tomorrow = now + timedelta(days=1)
-        midnight = datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, hour=0, minute=0, second=0)
-        seconds_until_midnight = (midnight - now).total_seconds()
-        
-        logger.info(f"Maintenance scheduled in {seconds_until_midnight:.2f} seconds.")
-        
-        # Wait for midnight, but check for shutdown/flush every minute? 
-        # Actually, we can just sleep. The flush task is separate.
-        await asyncio.sleep(seconds_until_midnight)
-        
-        # Run Maintenance
-        await perform_maintenance(bot)
+        try:
+            now = datetime.now()
+            # Calculate time until next midnight
+            tomorrow = now + timedelta(days=1)
+            midnight = datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, hour=0, minute=0, second=0)
+            seconds_until_midnight = (midnight - now).total_seconds()
+            
+            logger.info(f"Daily maintenance scheduled in {seconds_until_midnight:.2f} seconds.")
+            await asyncio.sleep(seconds_until_midnight)
+            
+            # Run Maintenance
+            await perform_maintenance(bot)
+            
+            # Wait a bit to avoid double execution if clock skews
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error in scheduled maintenance task: {e}")
+            await asyncio.sleep(60)
 
 async def database_flush_task():
     """Periodically flushes database to disk."""
@@ -717,23 +723,40 @@ async def database_flush_task():
         db.flush()
 
 async def perform_maintenance(bot: Bot):
-    """Exports data and resets stats."""
+    """Exports data, sends logs to admins, and clears log files."""
     logger.info("Starting daily maintenance...")
     from database import db
     from admin import ADMIN_IDS
     from aiogram.types import FSInputFile
     import os
-    from datetime import datetime, timedelta
+    from datetime import datetime
     
     # 1. Send Files to Admins
     for admin_id in ADMIN_IDS:
         try:
+            # Data Export
             if os.path.exists("bot_data.json"):
                 await bot.send_document(admin_id, FSInputFile("bot_data.json"), caption="📅 Daily Data Export")
-            if os.path.exists("bot.log"):
-                await bot.send_document(admin_id, FSInputFile("bot.log"), caption="📜 Daily Log Export")
+            
+            # Log Exports
+            for filename in ["bot.log", "error.log"]:
+                if os.path.exists(filename) and os.path.getsize(filename) > 0:
+                    await bot.send_document(
+                        admin_id, 
+                        FSInputFile(filename),
+                        caption=f"📜 Daily Log Export: {filename} ({datetime.now().strftime('%Y-%m-%d')})"
+                    )
         except Exception as e:
             logger.error(f"Failed to send maintenance files to {admin_id}: {e}")
+
+    # 2. Clear Log Files AFTER sending
+    for filename in ["bot.log", "error.log"]:
+        try:
+            if os.path.exists(filename):
+                open(filename, 'w').close()
+                logger.info(f"Cleared {filename}")
+        except Exception as e:
+            logger.error(f"Failed to clear {filename}: {e}")
 
 
 # Color QR - Button-based flow
@@ -981,57 +1004,6 @@ class CustomAiohttpSession(AiohttpSession):
             )
         return self._session
 
-async def scheduled_log_rotation(bot: Bot):
-    """
-    Background task to send logs to admins at midnight and clear them.
-    """
-    while True:
-        try:
-            # Calculate time until next midnight
-            now = datetime.now()
-            tomorrow = now + timedelta(days=1)
-            midnight = datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, hour=0, minute=0, second=0)
-            seconds_until_midnight = (midnight - now).total_seconds()
-            
-            logger.info(f"Log rotation scheduled in {seconds_until_midnight:.2f} seconds.")
-            await asyncio.sleep(seconds_until_midnight)
-            
-            # It's midnight! Send logs
-            logger.info("Performing daily log rotation...")
-            
-            # Get admins
-            from admin import ADMIN_IDS
-            
-            files_to_send = ["bot.log", "error.log"]
-            
-            for admin_id in ADMIN_IDS:
-                try:
-                    for filename in files_to_send:
-                        if os.path.exists(filename) and os.path.getsize(filename) > 0:
-                            await bot.send_document(
-                                admin_id, 
-                                FSInputFile(filename),
-                                caption=f"📄 Daily Log: {filename} ({datetime.now().strftime('%Y-%m-%d')})"
-                            )
-                except Exception as e:
-                    logger.error(f"Failed to send logs to admin {admin_id}: {e}")
-            
-            # Clear files
-            for filename in files_to_send:
-                try:
-                    open(filename, 'w').close()
-                    logger.info(f"Cleared {filename}")
-                except Exception as e:
-                    logger.error(f"Failed to clear {filename}: {e}")
-                    
-            # Wait a bit to avoid double execution if clock skews
-            await asyncio.sleep(60)
-            
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.error(f"Error in log rotation task: {e}")
-            await asyncio.sleep(60) # Retry in a minute on error
 
 async def keep_alive():
     """
@@ -1079,7 +1051,6 @@ async def main() -> None:
     # Start background tasks
     # Store runner to prevent GC
     bot.web_runner = await keep_alive()
-    asyncio.create_task(scheduled_log_rotation(bot))
     asyncio.create_task(scheduled_maintenance(bot)) 
     
     # Start database flush task

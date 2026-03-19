@@ -6,7 +6,10 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import BufferedInputFile, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, BotCommand
+from aiogram.types import (
+    BufferedInputFile, ReplyKeyboardMarkup, KeyboardButton, 
+    ReplyKeyboardRemove, BotCommand, InlineKeyboardMarkup, InlineKeyboardButton
+)
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramNetworkError
 import validators
@@ -79,11 +82,52 @@ async def send_photo_with_retry(message: types.Message, photo: types.BufferedInp
     logger.error(f"Failed to send photo after {retries} attempts.")
     raise TelegramNetworkError("Failed to send photo after multiple retries.")
 
+# Main Menu Keyboard
+def get_main_menu():
+    """Returns the main menu keyboard."""
+    kb = [
+        [KeyboardButton(text=strings.MENU_MEMBERSHIP), KeyboardButton(text=strings.MENU_REGISTER)],
+        [KeyboardButton(text=strings.MENU_HELP), KeyboardButton(text=strings.MENU_SETTINGS)]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+# Registration Keyboard
+def get_registration_keyboard():
+    """Returns the inline registration link button."""
+    kb = [
+        [InlineKeyboardButton(text=strings.REGISTER_BTN_TEXT, url=strings.REGISTER_LINK)]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
 @dp.message(Command("start"))
 async def start(message: types.Message):
     """Send a message when the command /start is issued."""
     welcome_text = strings.WELCOME_MSG
-    await message.reply(welcome_text, parse_mode='Markdown')
+    await message.reply(welcome_text, parse_mode='Markdown', reply_markup=get_main_menu())
+
+@dp.message(F.text == strings.MENU_REGISTER)
+async def menu_register(message: types.Message):
+    """Handle Register STEM button."""
+    await message.answer(
+        strings.REGISTER_STEM_MSG, 
+        parse_mode='Markdown', 
+        reply_markup=get_registration_keyboard()
+    )
+
+@dp.message(F.text == strings.MENU_MEMBERSHIP)
+async def menu_membership(message: types.Message):
+    """Handle Check Membership button."""
+    await message.answer(strings.MSG_MEMBERSHIP_INFO, parse_mode='Markdown')
+
+@dp.message(F.text == strings.MENU_HELP)
+async def menu_help(message: types.Message):
+    """Handle Help button."""
+    await help_command(message)
+
+@dp.message(F.text == strings.MENU_SETTINGS)
+async def menu_settings(message: types.Message, state: FSMContext):
+    """Handle Settings button."""
+    await color_qr_command(message, state)
 
 @dp.message(Command("help"))
 async def help_command(message: types.Message):

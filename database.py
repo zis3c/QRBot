@@ -213,5 +213,20 @@ class Database:
             self.user_prefs[uid].pop('custom_qr', None)
             self.save()
 
+    # --- ACTIVITY LOGGING (FILE BASED) ---
+    def log_action(self, name: str, action: str, details: str, role: str = "USER"):
+        """Writes a clean activity log entry to activity.log.
+        
+        Format: [YYYY-MM-DD HH:MM:SS] USER: Name (id) | ACTION: action | details
+        """
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = f"[{timestamp}] {role}: {name} | ACTION: {action} | {details}\n"
+        try:
+            with open("activity.log", "a", encoding="utf-8") as f:
+                f.write(log_entry)
+        except Exception as e:
+            print(f"⚠️ Failed to write activity log: {e}")
+
 # Global instance
 db = Database()

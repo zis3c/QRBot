@@ -11,6 +11,21 @@ import notifications
 
 logger = logging.getLogger(__name__)
 
+# All keyboard button texts to distinguish keyboard clicks from raw messages
+KEYBOARD_BUTTONS = [
+    strings.MENU_MEMBERSHIP, strings.MENU_REGISTER,
+    strings.MENU_HELP, strings.MENU_SETTINGS,
+    "WPA", "WEP", "nopass",
+    "base64", "hex", "rot13", "Sentinel QR",
+    "Google Maps", "Waze", "Apple Maps", "Geo URI",
+    "☀️ Light Mode", "🌙 Dark Mode", "🎨 Custom",
+    "🔴 Red", "🔵 Blue", "🟡 Yellow", "🟢 Green",
+    "🟠 Orange", "🟣 Purple", "🩷 Pink", "🟤 Brown",
+    "⚫ Black", "⚪ White", "⚪ Grey",
+    "✅ Confirm", "❌ Cancel", "Confirm", "Cancel",
+    "📍 Share Location",
+]
+
 class ThrottlingMiddleware(BaseMiddleware):
     def __init__(self, limit_light: float = 2.0, limit_heavy: float = 10.0):
         self.limit_light = limit_light
@@ -29,22 +44,34 @@ class ThrottlingMiddleware(BaseMiddleware):
         
         # 0. Track User & Stats
         db.update_user_activity(user_id)
-        command = event.text.split()[0] if event.text else "unknown"
+        text = event.text or ""
+        command = text.split()[0] if text else "unknown"
         if event.photo: command = "photo"
         
         # Define valid commands to track
         VALID_COMMANDS = {
             "/start", "/help", "/about",
             "/textqr", "/urlqr", "/wifiqr", "/vcardqr", "/encodeqr", "/readerqr", "/geoqr",
-            "/admin", "/ban", "/unban", "/system", "/stats", "/broadcast", "/logs", 
+            "/admin", "/ban", "/unban", "/system", "/stats", "/broadcast", "/logs",
             "/users", "/userban", "/command", "/cancel", "/confirm", "/penalties", "/unpenalty"
         }
         
         if command in VALID_COMMANDS:
             db.increment_stat(command)
-        
-        # Log activity
-        logger.info(f"User:{user_id} | Action:{command}")
+
+        # --- Clean Activity Log system ---
+        user_name = event.from_user.first_name or "Unknown"
+        display = f"{user_name} ({user_id})"
+
+        if event.photo:
+            db.log_action(display, "MSG", "[Photo]", role="USER")
+        elif text:
+            # Detect keyboard button clicks
+            if text in KEYBOARD_BUTTONS:
+                db.log_action(display, "KEYBOARD_CLICK", f"Button: {text}", role="USER")
+            else:
+                # Command or free-text input
+                db.log_action(display, "MSG", text if len(text) <= 80 else text[:80] + "...", role="USER")
 
         # 0.5 Admin Immunity
         if is_admin(user_id):

@@ -193,11 +193,16 @@ async def cancel_broadcast(message: types.Message):
 @router.message(Command("logs"))
 async def get_logs(message: types.Message):
     if not is_admin(message.from_user.id): return
-    
-    if os.path.exists("bot.log"):
-        await message.reply_document(FSInputFile("bot.log"))
+
+    log_file = "activity.log"
+    if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
+        from datetime import datetime
+        await message.reply_document(
+            FSInputFile(log_file),
+            caption=f"📜 Activity Log — {datetime.now().strftime('%Y-%m-%d')}"
+        )
     else:
-        await message.reply("⚠️ No log file found.")
+        await message.reply("📂 Activity log is empty or missing.")
 
 @router.message(Command("stats"))
 async def stats(message: types.Message):

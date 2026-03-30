@@ -767,40 +767,35 @@ async def database_flush_task():
         db.flush()
 
 async def perform_maintenance(bot: Bot):
-    """Exports data, sends logs to admins, and clears log files."""
+    """Exports activity log to admins and clears it."""
     logger.info("Starting daily maintenance...")
     from database import db
     from admin import ADMIN_IDS
     from aiogram.types import FSInputFile
     import os
     from datetime import datetime
-    
-    # 1. Send Files to Admins
+
+    log_file = "activity.log"
+
+    # 1. Send activity.log to Admins
     for admin_id in ADMIN_IDS:
         try:
-            # Data Export
-            if os.path.exists("bot_data.json"):
-                await bot.send_document(admin_id, FSInputFile("bot_data.json"), caption="📅 Daily Data Export")
-            
-            # Log Exports
-            for filename in ["bot.log", "error.log"]:
-                if os.path.exists(filename) and os.path.getsize(filename) > 0:
-                    await bot.send_document(
-                        admin_id, 
-                        FSInputFile(filename),
-                        caption=f"📜 Daily Log Export: {filename} ({datetime.now().strftime('%Y-%m-%d')})"
-                    )
+            if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
+                await bot.send_document(
+                    admin_id,
+                    FSInputFile(log_file),
+                    caption=f"📜 Daily Activity Log — {datetime.now().strftime('%Y-%m-%d')}"
+                )
         except Exception as e:
-            logger.error(f"Failed to send maintenance files to {admin_id}: {e}")
+            logger.error(f"Failed to send activity log to {admin_id}: {e}")
 
-    # 2. Clear Log Files AFTER sending
-    for filename in ["bot.log", "error.log"]:
-        try:
-            if os.path.exists(filename):
-                open(filename, 'w').close()
-                logger.info(f"Cleared {filename}")
-        except Exception as e:
-            logger.error(f"Failed to clear {filename}: {e}")
+    # 2. Clear activity.log AFTER sending
+    try:
+        if os.path.exists(log_file):
+            open(log_file, 'w').close()
+            logger.info("Daily activity.log sent and cleared.")
+    except Exception as e:
+        logger.error(f"Failed to clear activity.log: {e}")
 
 
 # Color QR - Button-based flow

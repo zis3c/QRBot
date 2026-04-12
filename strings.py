@@ -50,32 +50,6 @@ Version: 1.0.0
 This bot is built to make generating QR codes easy for you.
 """
 
-# Main Menu Buttons
-MENU_MEMBERSHIP = "📂 Check Membership"
-MENU_REGISTER = "📝 Register STEM"
-MENU_HELP = "ℹ️ Help"
-MENU_SETTINGS = "⚙️ Settings"
-
-# Registration
-REGISTER_STEM_MSG = """
-🚀 *Register for STEM USAS*
-
-Join our community and unlock these benefits:
-✅ Access to exclusive STEM workshops & events
-✅ Networking with tech-savvy students & mentors
-✅ Hands-on projects and competitions
-✅ Regular updates on club activities
-
-Click the button below to fill out the registration form:
-"""
-REGISTER_LINK = "https://docs.google.com/forms/d/e/1FAIpQLSchZH3A3wvlq2RQE47KorzGNLqDgX48zc4PP46kapENjnBiBA/viewform?fbzx=7657887268860346255"
-REGISTER_BTN_TEXT = "🔗 Open Registration Form"
-
-# Placeholders
-MSG_MEMBERSHIP_INFO = "🔍 *Membership Information*\n\nThis feature is coming soon! Stay tuned for updates."
-
-
-
 ERROR_GENERIC = "⚠️ Something went wrong. Please try again later."
 SUCCESS_GENERATE = "✅ Done! Here is your QR code:"
 
@@ -146,6 +120,5 @@ PROMPT_GEO_PLATFORM = "🗺️ Choose a map platform for navigation:"
 ERROR_INVALID_PLATFORM = "⚠️ Invalid platform! Please choose: *Google Maps*, *Waze*, or *Apple Maps*"
 PROMPT_UPLOAD_QR = "📸 Please upload the QR code image you want to scan."
 SENTINEL_DETECTED = "🛡️ *Sentinel QR Detected*\n\n🔓 *Decrypted Content:* {content}"
-
 
 

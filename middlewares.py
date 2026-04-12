@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 # All keyboard button texts to distinguish keyboard clicks from raw messages
 KEYBOARD_BUTTONS = [
-    strings.MENU_MEMBERSHIP, strings.MENU_REGISTER,
-    strings.MENU_HELP, strings.MENU_SETTINGS,
     "WPA", "WEP", "nopass",
     "base64", "hex", "rot13", "Sentinel QR",
     "Google Maps", "Waze", "Apple Maps", "Geo URI",
@@ -169,4 +167,3 @@ class ThrottlingMiddleware(BaseMiddleware):
         
         # Proceed with handler
         return await handler(event, data)
-

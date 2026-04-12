@@ -2,6 +2,10 @@ services:
   - type: web
     name: qrbot
     env: docker
+    disks:
+      - name: qrbot-data
+        mountPath: /var/data
+        sizeGB: 1
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
@@ -9,3 +13,5 @@ services:
         sync: false
       - key: SENTINEL_KEY
         sync: false
+      - key: QRBOT_DB_FILE
+        value: /var/data/bot_data.json

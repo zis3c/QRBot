@@ -2,11 +2,16 @@ import json
 import os
 from typing import Set, Dict, Any
 
-DB_FILE = "bot_data.json"
+DEFAULT_DB_FILE = "bot_data.json"
+DB_FILE_ENV = "QRBOT_DB_FILE"
 
 class Database:
     def __init__(self):
-        self.filename = DB_FILE
+        default_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            DEFAULT_DB_FILE
+        )
+        self.filename = os.path.abspath(os.getenv(DB_FILE_ENV, default_path))
         self.users: Dict[int, Dict[str, float]] = {} # user_id: {joined_at, last_active}
         self.banned: Set[int] = set()
         self.stats: Dict[str, Any] = {
@@ -24,7 +29,7 @@ class Database:
         if not os.path.exists(self.filename):
             return
         try:
-            with open(self.filename, 'r') as f:
+            with open(self.filename, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 
                 # Migrate users list to dict if necessary
@@ -77,13 +82,15 @@ class Database:
         # Atomic write: write to temp file then rename
         temp_filename = self.filename + ".tmp"
         try:
-            with open(temp_filename, 'w') as f:
-                json.dump(data, f, indent=4)
-            
-            # Atomic rename
-            if os.path.exists(self.filename):
-                os.remove(self.filename)
-            os.rename(temp_filename, self.filename)
+            db_dir = os.path.dirname(self.filename)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
+
+            with open(temp_filename, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+
+            # Atomic replace (safe on both Windows and Unix).
+            os.replace(temp_filename, self.filename)
             self._dirty = False
         except Exception as e:
             print(f"⚠️ Error saving database: {e}")
@@ -98,6 +105,8 @@ class Database:
                 'last_active': time.time()
             }
             self.save()
+            # Persist new user IDs immediately so they survive restarts.
+            self.flush()
             
     def update_user_activity(self, user_id: int):
         import time

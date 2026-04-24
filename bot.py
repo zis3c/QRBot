@@ -2,7 +2,8 @@ import asyncio
 import logging
 import os
 import shlex
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -27,6 +28,23 @@ import time
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 SENTINEL_KEY = os.getenv("SENTINEL_KEY")
+MAINTENANCE_TZ_NAME = os.getenv("MAINTENANCE_TIMEZONE", "Asia/Kuala_Lumpur")
+try:
+    MAINTENANCE_HOUR = int(os.getenv("MAINTENANCE_HOUR", "8"))
+except ValueError:
+    MAINTENANCE_HOUR = 8
+if not 0 <= MAINTENANCE_HOUR <= 23:
+    MAINTENANCE_HOUR = 8
+
+try:
+    MAINTENANCE_TZ = ZoneInfo(MAINTENANCE_TZ_NAME)
+except Exception:
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "Invalid MAINTENANCE_TIMEZONE=%s. Falling back to UTC+08:00.",
+        MAINTENANCE_TZ_NAME
+    )
+    MAINTENANCE_TZ = timezone(timedelta(hours=8))
 
 # Enable logging
 logging.basicConfig(
@@ -699,17 +717,23 @@ async def process_reader_password(message: types.Message, state: FSMContext):
         await message.reply("❌ *Decryption Failed*\n\nIncorrect password or corrupted data.", parse_mode='Markdown')
 
 async def scheduled_maintenance(bot: Bot):
-    """Runs daily maintenance at 00:00 AM."""
+    """Runs daily maintenance at configured local time (default 08:00 Asia/Kuala_Lumpur)."""
     while True:
         try:
-            now = datetime.now()
-            # Calculate time until next midnight
-            tomorrow = now + timedelta(days=1)
-            midnight = datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, hour=0, minute=0, second=0)
-            seconds_until_midnight = (midnight - now).total_seconds()
+            now = datetime.now(MAINTENANCE_TZ)
+            next_run = now.replace(hour=MAINTENANCE_HOUR, minute=0, second=0, microsecond=0)
+            if now >= next_run:
+                next_run += timedelta(days=1)
+
+            seconds_until_next_run = (next_run - now).total_seconds()
             
-            logger.info(f"Daily maintenance scheduled in {seconds_until_midnight:.2f} seconds.")
-            await asyncio.sleep(seconds_until_midnight)
+            logger.info(
+                "Daily maintenance scheduled for %s (%s) in %.2f seconds.",
+                next_run.strftime("%Y-%m-%d %H:%M:%S"),
+                MAINTENANCE_TZ_NAME,
+                seconds_until_next_run
+            )
+            await asyncio.sleep(max(seconds_until_next_run, 0))
             
             # Run Maintenance
             await perform_maintenance(bot)
@@ -747,7 +771,7 @@ async def perform_maintenance(bot: Bot):
                 await bot.send_document(
                     admin_id,
                     FSInputFile(log_file),
-                    caption=f"📜 Daily Activity Log — {datetime.now().strftime('%Y-%m-%d')}"
+                    caption=f"📜 Daily Activity Log — {datetime.now(MAINTENANCE_TZ).strftime('%Y-%m-%d')}"
                 )
         except Exception as e:
             logger.error(f"Failed to send activity log to {admin_id}: {e}")

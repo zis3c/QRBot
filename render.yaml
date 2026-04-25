@@ -15,3 +15,5 @@ services:
         sync: false
       - key: QRBOT_DB_FILE
         value: /var/data/bot_data.json
+      - key: QRBOT_ACTIVITY_LOG_FILE
+        value: /var/data/activity.log

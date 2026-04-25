@@ -194,7 +194,7 @@ async def cancel_broadcast(message: types.Message):
 async def get_logs(message: types.Message):
     if not is_admin(message.from_user.id): return
 
-    log_file = "activity.log"
+    log_file = db.activity_log_file
     if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
         from datetime import datetime
         await message.reply_document(

@@ -4,14 +4,33 @@ from typing import Set, Dict, Any
 
 DEFAULT_DB_FILE = "bot_data.json"
 DB_FILE_ENV = "QRBOT_DB_FILE"
+DATA_DIR_ENV = "QRBOT_DATA_DIR"
+ACTIVITY_LOG_ENV = "QRBOT_ACTIVITY_LOG_FILE"
+
+
+def _resolve_db_path() -> str:
+    """Resolve database path with persistent-storage-first strategy."""
+    env_file = os.getenv(DB_FILE_ENV)
+    if env_file:
+        return os.path.abspath(env_file)
+
+    data_dir = os.getenv(DATA_DIR_ENV)
+    if data_dir:
+        return os.path.abspath(os.path.join(data_dir, DEFAULT_DB_FILE))
+
+    # Render persistent disk mount path.
+    if os.path.isdir("/var/data"):
+        return "/var/data/bot_data.json"
+
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_DB_FILE)
 
 class Database:
     def __init__(self):
-        default_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            DEFAULT_DB_FILE
+        self.filename = _resolve_db_path()
+        self.data_dir = os.path.dirname(self.filename) or "."
+        self.activity_log_file = os.path.abspath(
+            os.getenv(ACTIVITY_LOG_ENV, os.path.join(self.data_dir, "activity.log"))
         )
-        self.filename = os.path.abspath(os.getenv(DB_FILE_ENV, default_path))
         self.users: Dict[int, Dict[str, float]] = {} # user_id: {joined_at, last_active}
         self.banned: Set[int] = set()
         self.stats: Dict[str, Any] = {
@@ -232,7 +251,8 @@ class Database:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {role}: {name} | ACTION: {action} | {details}\n"
         try:
-            with open("activity.log", "a", encoding="utf-8") as f:
+            os.makedirs(os.path.dirname(self.activity_log_file), exist_ok=True)
+            with open(self.activity_log_file, "a", encoding="utf-8") as f:
                 f.write(log_entry)
         except Exception as e:
             print(f"⚠️ Failed to write activity log: {e}")

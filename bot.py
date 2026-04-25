@@ -762,7 +762,7 @@ async def perform_maintenance(bot: Bot):
     import os
     from datetime import datetime
 
-    log_file = "activity.log"
+    log_file = db.activity_log_file
 
     # 1. Send activity.log to Admins
     for admin_id in ADMIN_IDS:
@@ -780,7 +780,7 @@ async def perform_maintenance(bot: Bot):
     try:
         if os.path.exists(log_file):
             open(log_file, 'w').close()
-            logger.info("Daily activity.log sent and cleared.")
+            logger.info("Daily activity log sent and cleared: %s", log_file)
     except Exception as e:
         logger.error(f"Failed to clear activity.log: {e}")
 
@@ -1073,6 +1073,9 @@ async def main() -> None:
     )
     session = CustomAiohttpSession(timeout=120.0, connector=connector)
     bot = Bot(token=TOKEN, session=session)
+    from database import db
+    logger.info("Using database file: %s", db.filename)
+    logger.info("Using activity log file: %s", db.activity_log_file)
 
     # Start background tasks
     # Store runner to prevent GC

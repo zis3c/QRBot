@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import shlex
+import html
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
@@ -678,9 +679,11 @@ async def qr_reader_handler(message: types.Message, bot: Bot, state: FSMContext)
             # Auto-decode check
             fmt, decoded = qr_reader.try_detect_and_decode(content)
             if fmt and decoded:
-                response += f"\n\n🔓 *Auto-Decoded ({fmt})*:\n`{decoded}`"
+                safe_fmt = html.escape(fmt)
+                safe_decoded = html.escape(decoded if len(decoded) <= 1000 else decoded[:1000] + "... [truncated]")
+                response += f"\n\n🔓 <b>Auto-Decoded ({safe_fmt})</b>:\n<code>{safe_decoded}</code>"
                 
-            await message.reply(response, parse_mode='Markdown', disable_web_page_preview=True)
+            await message.reply(response, parse_mode='HTML', disable_web_page_preview=True)
 
         elif status == 'multiple':
             await message.reply(strings.ERROR_MULTIPLE_QR)
@@ -712,7 +715,11 @@ async def process_reader_password(message: types.Message, state: FSMContext):
     decrypted = qr_reader.try_decrypt_sentinel(content, password)
     
     if decrypted:
-        await message.reply(strings.SENTINEL_DETECTED.format(content=decrypted), parse_mode='Markdown')
+        safe_decrypted = html.escape(decrypted if len(decrypted) <= 1500 else decrypted[:1500] + "... [truncated]")
+        await message.reply(
+            f"🛡️ <b>Sentinel QR Detected</b>\n\n🔓 <b>Decrypted Content:</b> <code>{safe_decrypted}</code>",
+            parse_mode='HTML'
+        )
     else:
         await message.reply("❌ *Decryption Failed*\n\nIncorrect password or corrupted data.", parse_mode='Markdown')
 

@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from pyzbar.pyzbar import decode, ZBarSymbol
+import html
 
 def read_qr(image_bytes):
     """
@@ -108,26 +109,37 @@ def parse_wifi_string(content):
             
     return wifi_data
 
+def _escape_html_text(value: str, limit: int = 1500) -> str:
+    """Escape untrusted text before rendering in HTML parse mode."""
+    text = (value or "").strip()
+    if len(text) > limit:
+        text = text[:limit] + "... [truncated]"
+    return html.escape(text)
+
 def format_response(content, qr_type):
     """
     Formats the response string based on QR type.
     """
     response = ""
+    safe_content = _escape_html_text(content)
     
     if qr_type == 'URL':
-        response += f"*Type:* URL 🌐\n"
-        response += f"*Content:* {content}\n"
+        response += "<b>Type:</b> URL 🌐\n"
+        response += f"<b>Content:</b> <code>{safe_content}</code>\n"
         
     elif qr_type == 'WiFi':
         wifi_data = parse_wifi_string(content)
-        response += f"*Type:* WiFi Network 📶\n\n"
-        response += f"*Details:*\n"
-        response += f"SSID: `{wifi_data['SSID']}`\n"
-        response += f"Password: `{wifi_data['Password']}`\n"
-        response += f"Encryption: {wifi_data['Type']}"
+        ssid = _escape_html_text(wifi_data["SSID"])
+        password = _escape_html_text(wifi_data["Password"])
+        auth_type = _escape_html_text(wifi_data["Type"])
+        response += "<b>Type:</b> WiFi Network 📶\n\n"
+        response += "<b>Details:</b>\n"
+        response += f"SSID: <code>{ssid}</code>\n"
+        response += f"Password: <code>{password}</code>\n"
+        response += f"Encryption: {auth_type}"
         
     elif qr_type == 'vCard':
-        response += f"*Type:* Contact Card 👤\n\n"
+        response += "<b>Type:</b> Contact Card 👤\n\n"
         
         # Robust regex extraction
         name_match = re.search(r'FN:(.*?)(?:\n|$)', content)
@@ -142,15 +154,15 @@ def format_response(content, qr_type):
         org = org_match.group(1).strip() if org_match else ""
         title = title_match.group(1).strip() if title_match else ""
         
-        response += f"*Name:* {name}\n"
-        if title: response += f"*Title:* {title}\n"
-        if org: response += f"*Company:* {org}\n"
-        if phone: response += f"*Phone:* {phone}\n"
-        if email: response += f"*Email:* {email}"
+        response += f"<b>Name:</b> {_escape_html_text(name)}\n"
+        if title: response += f"<b>Title:</b> {_escape_html_text(title)}\n"
+        if org: response += f"<b>Company:</b> {_escape_html_text(org)}\n"
+        if phone: response += f"<b>Phone:</b> {_escape_html_text(phone)}\n"
+        if email: response += f"<b>Email:</b> {_escape_html_text(email)}"
         
     else: # Text or Generic
-        response += f"*Type:* Text 📝\n"
-        response += f"*Content:* {content}"
+        response += "<b>Type:</b> Text 📝\n"
+        response += f"<b>Content:</b> <code>{safe_content}</code>"
         
     return response
 
@@ -163,19 +175,37 @@ def try_decrypt_sentinel(content, password):
     try:
         if content.startswith("SENTINEL:"):
             content = content[9:]
-            
+
         from cryptography.fernet import Fernet
+
+        # New format: S2:<iterations>:<salt_b64>:<token>
+        if content.startswith("S2:"):
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+            from cryptography.hazmat.primitives import hashes
+            import base64
+
+            _, iter_str, salt_b64, token = content.split(":", 3)
+            iterations = int(iter_str)
+            salt = base64.urlsafe_b64decode(salt_b64.encode())
+
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                iterations=iterations,
+            )
+            key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+            f = Fernet(key)
+            return f.decrypt(token.encode()).decode()
+
+        # Legacy format fallback: Fernet(SHA256(password))
         import hashlib
         import base64
-        
-        # Derive key
         digest = hashlib.sha256(password.encode()).digest()
         key = base64.urlsafe_b64encode(digest)
-
         f = Fernet(key)
-        decrypted = f.decrypt(content.encode()).decode()
-        return decrypted
-    except:
+        return f.decrypt(content.encode()).decode()
+    except Exception:
         return None
 
 def try_detect_and_decode(content: str):

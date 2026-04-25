@@ -12,6 +12,7 @@ from enum import Enum
 
 import hashlib
 import base64
+import os
 
 @dataclass
 class QRColor:
@@ -218,14 +219,29 @@ def generate_encoded_qr(text, method, style: Optional['QRStyle'] = None):
         
     return generate_qr(encoded_text, style)
 
-def generate_key_from_password(password: str) -> bytes:
+DEFAULT_SENTINEL_KDF_ITERATIONS = 390000
+
+def generate_legacy_key_from_password(password: str) -> bytes:
     """
-    Derives a Fernet-compatible key from a password using SHA256 (simple).
-    In production, use PBKDF2 or similar. For this bot, SHA256 is enough 
-    since it deterministically maps password -> 32 byte base64 key.
+    Legacy key derivation used by older Sentinel QRs.
     """
     digest = hashlib.sha256(password.encode()).digest()
     return base64.urlsafe_b64encode(digest)
+
+def generate_key_from_password(password: str, salt: bytes, iterations: int = DEFAULT_SENTINEL_KDF_ITERATIONS) -> bytes:
+    """
+    Derive a Fernet-compatible key with PBKDF2-HMAC-SHA256.
+    """
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
+
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=iterations,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode()))
 
 def generate_sentinel_qr(text, password, style: Optional['QRStyle'] = None):
     """
@@ -238,15 +254,15 @@ def generate_sentinel_qr(text, password, style: Optional['QRStyle'] = None):
         
     try:
         from cryptography.fernet import Fernet
-        
-        # Derive key from password
-        key = generate_key_from_password(password)
-            
+
+        salt = os.urandom(16)
+        iterations = DEFAULT_SENTINEL_KDF_ITERATIONS
+        key = generate_key_from_password(password, salt=salt, iterations=iterations)
         f = Fernet(key)
-        # Encrypt text
         token = f.encrypt(text.encode())
-        # Prefix with SENTINEL: for identification
-        content = "SENTINEL:" + token.decode()
+        salt_b64 = base64.urlsafe_b64encode(salt).decode()
+        payload = f"S2:{iterations}:{salt_b64}:{token.decode()}"
+        content = "SENTINEL:" + payload
         return generate_qr(content, style)
     except Exception as e:
         raise QRGenerationError(f"Encryption failed: {e}")

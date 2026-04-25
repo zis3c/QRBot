@@ -24,6 +24,40 @@ KEYBOARD_BUTTONS = [
     "📍 Share Location",
 ]
 
+SENSITIVE_COMMANDS = {
+    "/wifiqr",
+    "/vcardqr",
+    "/encodeqr",
+    "/readerqr",
+    "/broadcast",
+}
+
+SENSITIVE_STATE_MARKERS = (
+    "WifiQRStates:waiting_for_password",
+    "VCardQRStates:waiting_for_phone",
+    "VCardQRStates:waiting_for_email",
+    "EncodeQRStates:waiting_for_text",
+    "EncodeQRStates:waiting_for_sentinel_password",
+    "QRReaderStates:waiting_for_password",
+    "BroadcastStates:waiting_for_message",
+)
+
+
+def _sanitize_for_activity_log(text: str, current_state: str = None) -> str:
+    """Redact sensitive user input before writing to activity logs."""
+    if not text:
+        return ""
+
+    cmd = text.split()[0].lower() if text.startswith("/") else ""
+    if cmd in SENSITIVE_COMMANDS:
+        return f"{cmd} [REDACTED]"
+
+    if current_state and any(marker in current_state for marker in SENSITIVE_STATE_MARKERS):
+        return "[REDACTED_SENSITIVE_INPUT]"
+
+    cleaned = text.replace("\n", " ").replace("\r", " ").strip()
+    return cleaned if len(cleaned) <= 80 else cleaned[:80] + "..."
+
 class ThrottlingMiddleware(BaseMiddleware):
     def __init__(self, limit_light: float = 2.0, limit_heavy: float = 10.0):
         self.limit_light = limit_light
@@ -39,6 +73,8 @@ class ThrottlingMiddleware(BaseMiddleware):
     ) -> Any:
         user_id = event.from_user.id
         current_time = time.time()
+        state: FSMContext = data.get('state')
+        current_state = await state.get_state() if state else None
         
         # 0. Track User & Stats
         db.update_user_activity(user_id)
@@ -69,7 +105,7 @@ class ThrottlingMiddleware(BaseMiddleware):
                 db.log_action(display, "KEYBOARD_CLICK", f"Button: {text}", role="USER")
             else:
                 # Command or free-text input
-                db.log_action(display, "MSG", text if len(text) <= 80 else text[:80] + "...", role="USER")
+                db.log_action(display, "MSG", _sanitize_for_activity_log(text, current_state), role="USER")
 
         # 0.5 Admin Immunity
         if is_admin(user_id):
@@ -88,12 +124,9 @@ class ThrottlingMiddleware(BaseMiddleware):
             return
 
         # 2.5 Check FSM State (Skip throttling if in flow)
-        state: FSMContext = data.get('state')
-        if state:
-            current_state = await state.get_state()
-            if current_state is not None:
-                # User is in a conversational flow, skip throttling
-                return await handler(event, data)
+        if current_state is not None:
+            # User is in a conversational flow, skip throttling
+            return await handler(event, data)
 
         # 3. Determine Limit
         # Group all QR commands together for security

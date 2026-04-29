@@ -41,6 +41,7 @@ class Database:
         self.pending_broadcasts: Dict[str, Any] = {} # admin_id: (text, timestamp)
         self.security: Dict[str, Any] = {} # user_id: {violations: int, penalty_end: float}
         self.user_prefs: Dict[str, Any] = {} # user_id: {style_template: str, custom_style: dict}
+        self.meta: Dict[str, Any] = {"last_maintenance_date": ""}
         self._dirty = False
         self.load()
 
@@ -77,6 +78,12 @@ class Database:
                 self.security = data.get('security', {})
                 # Load user prefs
                 self.user_prefs = data.get('user_prefs', {})
+                # Load metadata
+                raw_meta = data.get('meta', {})
+                if isinstance(raw_meta, dict):
+                    self.meta = {
+                        "last_maintenance_date": str(raw_meta.get("last_maintenance_date", "") or "")
+                    }
         except Exception as e:
             print(f"⚠️ Error loading database: {e}")
 
@@ -95,7 +102,8 @@ class Database:
             'stats': self.stats,
             'pending_broadcasts': self.pending_broadcasts,
             'security': self.security,
-            'user_prefs': self.user_prefs
+            'user_prefs': self.user_prefs,
+            'meta': self.meta
         }
         
         # Atomic write: write to temp file then rename
@@ -240,6 +248,15 @@ class Database:
         if uid in self.user_prefs:
             self.user_prefs[uid].pop('custom_qr', None)
             self.save()
+
+    def get_last_maintenance_date(self) -> str:
+        return str(self.meta.get("last_maintenance_date", "") or "")
+
+    def set_last_maintenance_date(self, date_value: str):
+        self.meta["last_maintenance_date"] = str(date_value or "")
+        self.save()
+        # Persist immediately to survive sudden restarts.
+        self.flush()
 
     # --- ACTIVITY LOGGING (FILE BASED) ---
     def log_action(self, name: str, action: str, details: str, role: str = "USER"):

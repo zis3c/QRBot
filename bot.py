@@ -725,28 +725,60 @@ async def process_reader_password(message: types.Message, state: FSMContext):
 
 async def scheduled_maintenance(bot: Bot):
     """Runs daily maintenance at configured local time (default 08:00 Asia/Kuala_Lumpur)."""
+    from database import db
     while True:
         try:
             now = datetime.now(MAINTENANCE_TZ)
-            next_run = now.replace(hour=MAINTENANCE_HOUR, minute=0, second=0, microsecond=0)
-            if now >= next_run:
-                next_run += timedelta(days=1)
+            report_date = (now.date() - timedelta(days=1)).strftime("%Y-%m-%d")
+            last_maintenance_date = db.get_last_maintenance_date()
 
-            seconds_until_next_run = (next_run - now).total_seconds()
-            
-            logger.info(
-                "Daily maintenance scheduled for %s (%s) in %.2f seconds.",
-                next_run.strftime("%Y-%m-%d %H:%M:%S"),
-                MAINTENANCE_TZ_NAME,
-                seconds_until_next_run
-            )
-            await asyncio.sleep(max(seconds_until_next_run, 0))
-            
-            # Run Maintenance
-            await perform_maintenance(bot)
-            
-            # Wait a bit to avoid double execution if clock skews
-            await asyncio.sleep(60)
+            due_now = now.hour >= MAINTENANCE_HOUR
+            if due_now and last_maintenance_date != report_date:
+                logger.info(
+                    "Daily maintenance due for %s (last=%s). Running now.",
+                    report_date,
+                    last_maintenance_date or "none",
+                )
+                ok = await perform_maintenance(bot, report_date)
+                if ok:
+                    db.set_last_maintenance_date(report_date)
+                    logger.info("Daily maintenance completed for %s.", report_date)
+                    # After success, sleep until tomorrow's exact maintenance time.
+                    next_run = (now + timedelta(days=1)).replace(
+                        hour=MAINTENANCE_HOUR, minute=0, second=0, microsecond=0
+                    )
+                    sleep_seconds = max((next_run - datetime.now(MAINTENANCE_TZ)).total_seconds(), 1)
+                    logger.info(
+                        "Next daily maintenance scheduled for %s (%s) in %.2f seconds.",
+                        next_run.strftime("%Y-%m-%d %H:%M:%S"),
+                        MAINTENANCE_TZ_NAME,
+                        sleep_seconds,
+                    )
+                    await asyncio.sleep(sleep_seconds)
+                    continue
+                else:
+                    logger.warning("Daily maintenance failed for %s; will retry.", report_date)
+                    await asyncio.sleep(300)
+                    continue
+
+            # Not due yet: sleep straight to the exact maintenance time today.
+            if now.hour < MAINTENANCE_HOUR:
+                next_run = now.replace(hour=MAINTENANCE_HOUR, minute=0, second=0, microsecond=0)
+                sleep_seconds = max((next_run - now).total_seconds(), 1)
+                logger.info(
+                    "Daily maintenance scheduled for %s (%s) in %.2f seconds.",
+                    next_run.strftime("%Y-%m-%d %H:%M:%S"),
+                    MAINTENANCE_TZ_NAME,
+                    sleep_seconds,
+                )
+                await asyncio.sleep(sleep_seconds)
+            else:
+                # Already due but already completed for this report_date.
+                next_run = (now + timedelta(days=1)).replace(
+                    hour=MAINTENANCE_HOUR, minute=0, second=0, microsecond=0
+                )
+                sleep_seconds = max((next_run - now).total_seconds(), 1)
+                await asyncio.sleep(sleep_seconds)
         except asyncio.CancelledError:
             break
         except Exception as e:
@@ -760,28 +792,32 @@ async def database_flush_task():
         await asyncio.sleep(5) # Save every 5 seconds
         db.flush()
 
-async def perform_maintenance(bot: Bot):
+async def perform_maintenance(bot: Bot, report_date: str):
     """Exports activity log to admins and clears it."""
     logger.info("Starting daily maintenance...")
     from database import db
     from admin import ADMIN_IDS
     from aiogram.types import FSInputFile
     import os
-    from datetime import datetime
 
     log_file = db.activity_log_file
 
     # 1. Send activity.log to Admins
+    sent_count = 0
     for admin_id in ADMIN_IDS:
         try:
             if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
                 await bot.send_document(
                     admin_id,
                     FSInputFile(log_file),
-                    caption=f"📜 Daily Activity Log — {datetime.now(MAINTENANCE_TZ).strftime('%Y-%m-%d')}"
+                    caption=f"📜 Daily Activity Log — {report_date}"
                 )
+                sent_count += 1
         except Exception as e:
             logger.error(f"Failed to send activity log to {admin_id}: {e}")
+
+    if os.path.exists(log_file) and os.path.getsize(log_file) > 0 and sent_count == 0:
+        return False
 
     # 2. Clear activity.log AFTER sending
     try:
@@ -790,6 +826,9 @@ async def perform_maintenance(bot: Bot):
             logger.info("Daily activity log sent and cleared: %s", log_file)
     except Exception as e:
         logger.error(f"Failed to clear activity.log: {e}")
+        return False
+
+    return True
 
 
 # Color QR - Button-based flow

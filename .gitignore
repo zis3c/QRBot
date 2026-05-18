@@ -1,5 +1,6 @@
 # Secrets
 .env
+credential.env
 
 # Logs
 *.log

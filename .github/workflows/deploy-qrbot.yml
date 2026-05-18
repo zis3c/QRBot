@@ -1,0 +1,53 @@
+name: Deploy QRBot to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-qrbot-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy project files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "."
+          target: "/opt/qrbot"
+          rm: true
+          strip_components: 0
+
+      - name: Install dependencies and restart service
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            chown -R deploy:deploy /opt/qrbot
+
+            sudo -u deploy -H bash -lc '
+              set -e
+              cd /opt/qrbot
+              python3 -m venv .venv
+              .venv/bin/pip install --upgrade pip
+              .venv/bin/pip install -r requirements.txt
+            '
+
+            systemctl daemon-reload
+            systemctl restart qrbot.service
+            systemctl is-active --quiet qrbot.service

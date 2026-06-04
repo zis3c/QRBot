@@ -18,6 +18,9 @@ A versatile Telegram bot for generating and reading QR codes. Built with Python 
 > [!NOTE]
 > **Privacy First**: QRBot processes all data in-memory and does not store generated QR codes or scanned images on the server.
 
+> [!IMPORTANT]
+> Persistent bot state such as users, stats, bans, preferences, and logs now lives in SQLite (`qrbot.db`). For Docker deployments, mount `/data` to a named volume or host folder.
+
 ## Features
 
 - 🚀 **QR Generation**: Create QR codes for Text, URL, WiFi credentials, vCard contacts, Geo coordinates, and encoded data (Base64, Hex, ROT13).
@@ -109,6 +112,7 @@ QRBot/
 4. **Sentinel Encryption**: For Sentinel QR, the payload is AES-encrypted with the user's password before encoding; the key is never stored.
 5. **QR Reading**: Images sent to the bot are passed to `qr_reader.py`, which decodes and returns the embedded data.
 6. **Admin Layer**: Admin commands are protected by a middleware that checks the sender's ID against `ADMIN_IDS` before execution.
+7. **Persistence Layer**: Runtime state is stored in a local SQLite database, with automatic import from legacy `bot_data.json` on first boot if present.
 
 ## Contributing
 

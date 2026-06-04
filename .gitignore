@@ -9,6 +9,9 @@ error.log
 
 # Data (Local DB)
 bot_data.json
+qrbot.db
+*.db
+data/
 stress_test_data.json
 monitor_report.json
 

@@ -1,5 +1,7 @@
 FROM python:3.10-slim
 
+ENV QRBOT_DATA_DIR=/data
+
 # Install system dependencies for pyzbar and opencv
 RUN apt-get update && apt-get install -y \
     libzbar0 \
@@ -8,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+VOLUME ["/data"]
 
 # Copy requirements first to leverage cache
 COPY requirements.txt .

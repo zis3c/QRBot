@@ -110,6 +110,10 @@ QRBot uses environment variables for configuration. You can set these in your te
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `ADMIN_IDS` | Comma-separated list of Telegram User IDs for admin access. | `None` |
+| `QRBOT_DATA_DIR` | Directory for persistent bot data such as `qrbot.db` and logs. | `/data` in Docker, `./data` or app dir elsewhere |
+| `QRBOT_DB_PATH` | Override full path for SQLite database file. | `<QRBOT_DATA_DIR>/qrbot.db` |
+| `QRBOT_DB_FILE` | Legacy alias for DB path override. Still supported for compatibility. | Unset |
+| `QRBOT_IMMEDIATE_FLUSH` | Write database changes to disk immediately. Use `0` to disable. | `1` |
 
 ### Setting up .env (Local Development)
 
@@ -118,6 +122,7 @@ QRBot uses environment variables for configuration. You can set these in your te
     ```env
     TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIjkLmnOpQrStUvWxYz
     ADMIN_IDS=12345678,87654321
+    QRBOT_DATA_DIR=./data
     ```
 
 ---
@@ -136,9 +141,40 @@ Docker is the easiest way to run QRBot in a consistent environment.
     docker run -d \
       -e TELEGRAM_BOT_TOKEN="your_token_here" \
       -e ADMIN_IDS="12345678" \
+      -v qrbot_data:/data \
       --name qrbot_instance \
       qrbot
     ```
+
+3.  **Important: keep data across container recreation**
+
+    If you rebuild or recreate container without volume, `users`, `stats`, bans, preferences, and logs will be lost.
+
+    Named volume example:
+    ```bash
+    docker volume create qrbot_data
+    docker run -d \
+      -e TELEGRAM_BOT_TOKEN="your_token_here" \
+      -e ADMIN_IDS="12345678" \
+      -v qrbot_data:/data \
+      --name qrbot_instance \
+      qrbot
+    ```
+
+    Host folder example on a droplet:
+    ```bash
+    mkdir -p /opt/qrbot-data
+    docker run -d \
+      -e TELEGRAM_BOT_TOKEN="your_token_here" \
+      -e ADMIN_IDS="12345678" \
+      -v /opt/qrbot-data:/data \
+      --name qrbot_instance \
+      qrbot
+    ```
+
+4.  **Legacy JSON migration**
+
+    If an old `bot_data.json` exists in the data directory, QRBot imports it into `qrbot.db` on first startup automatically.
 
 ---
 

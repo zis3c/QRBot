@@ -54,14 +54,6 @@ A versatile Telegram bot for generating and reading QR codes. Built with Python 
 
 For detailed setup instructions on Windows, Linux, macOS, and Docker, see the **[Installation Guide](INSTALLATION.md)**.
 
-### Deploy to Render
-
-This project includes a `render.yaml` for one-click deployment on [Render](https://render.com):
-
-1. Link your forked repository to Render.
-2. Add `TELEGRAM_BOT_TOKEN` and `ADMIN_IDS` in the Render dashboard under **Environment**.
-3. Deploy. The built-in keep-alive server prevents the instance from sleeping.
-
 ## Project Structure
 
 ```
@@ -75,7 +67,6 @@ QRBot/
 ├── qr_reader.py         # QR code scanning and decoding logic
 ├── states.py            # FSM states for multi-step conversations
 ├── strings.py           # Bot text and string constants
-├── render.yaml          # Render deployment configuration
 ├── requirements.txt     # Python dependencies
 ├── Dockerfile           # Docker setup
 ├── INSTALLATION.md      # Detailed installation guide

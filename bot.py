@@ -24,6 +24,7 @@ from states import TextQRStates, UrlQRStates, WifiQRStates, VCardQRStates, Encod
 import admin
 import notifications
 import time
+from database import resolve_runtime_log_path
 
 # Load environment variables
 load_dotenv()
@@ -38,6 +39,13 @@ if not 0 <= MAINTENANCE_HOUR <= 23:
     MAINTENANCE_HOUR = 8
 
 try:
+    MAINTENANCE_MINUTE = int(os.getenv("MAINTENANCE_MINUTE", os.getenv("DAILY_LOG_MINUTE", "0")))
+except ValueError:
+    MAINTENANCE_MINUTE = 0
+if not 0 <= MAINTENANCE_MINUTE <= 59:
+    MAINTENANCE_MINUTE = 0
+
+try:
     MAINTENANCE_TZ = ZoneInfo(MAINTENANCE_TZ_NAME)
 except Exception:
     logger = logging.getLogger(__name__)
@@ -48,11 +56,14 @@ except Exception:
     MAINTENANCE_TZ = timezone(timedelta(hours=8))
 
 # Enable logging
+RUNTIME_LOG_FILE = resolve_runtime_log_path()
+os.makedirs(os.path.dirname(RUNTIME_LOG_FILE) or ".", exist_ok=True)
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
     level=logging.INFO,
     handlers=[
-        logging.FileHandler("bot.log"),
+        logging.FileHandler(RUNTIME_LOG_FILE, encoding="utf-8"),
         logging.StreamHandler()
     ]
 )
@@ -731,8 +742,10 @@ async def scheduled_maintenance(bot: Bot):
             now = datetime.now(MAINTENANCE_TZ)
             report_date = (now.date() - timedelta(days=1)).strftime("%Y-%m-%d")
             last_maintenance_date = db.get_last_maintenance_date()
+            current_clock = (now.hour, now.minute)
+            maintenance_clock = (MAINTENANCE_HOUR, MAINTENANCE_MINUTE)
 
-            due_now = now.hour >= MAINTENANCE_HOUR
+            due_now = current_clock >= maintenance_clock
             if due_now and last_maintenance_date != report_date:
                 logger.info(
                     "Daily maintenance due for %s (last=%s). Running now.",
@@ -745,7 +758,7 @@ async def scheduled_maintenance(bot: Bot):
                     logger.info("Daily maintenance completed for %s.", report_date)
                     # After success, sleep until tomorrow's exact maintenance time.
                     next_run = (now + timedelta(days=1)).replace(
-                        hour=MAINTENANCE_HOUR, minute=0, second=0, microsecond=0
+                        hour=MAINTENANCE_HOUR, minute=MAINTENANCE_MINUTE, second=0, microsecond=0
                     )
                     sleep_seconds = max((next_run - datetime.now(MAINTENANCE_TZ)).total_seconds(), 1)
                     logger.info(
@@ -762,8 +775,8 @@ async def scheduled_maintenance(bot: Bot):
                     continue
 
             # Not due yet: sleep straight to the exact maintenance time today.
-            if now.hour < MAINTENANCE_HOUR:
-                next_run = now.replace(hour=MAINTENANCE_HOUR, minute=0, second=0, microsecond=0)
+            if current_clock < maintenance_clock:
+                next_run = now.replace(hour=MAINTENANCE_HOUR, minute=MAINTENANCE_MINUTE, second=0, microsecond=0)
                 sleep_seconds = max((next_run - now).total_seconds(), 1)
                 logger.info(
                     "Daily maintenance scheduled for %s (%s) in %.2f seconds.",
@@ -775,7 +788,7 @@ async def scheduled_maintenance(bot: Bot):
             else:
                 # Already due but already completed for this report_date.
                 next_run = (now + timedelta(days=1)).replace(
-                    hour=MAINTENANCE_HOUR, minute=0, second=0, microsecond=0
+                    hour=MAINTENANCE_HOUR, minute=MAINTENANCE_MINUTE, second=0, microsecond=0
                 )
                 sleep_seconds = max((next_run - now).total_seconds(), 1)
                 await asyncio.sleep(sleep_seconds)
@@ -793,42 +806,88 @@ async def database_flush_task():
         db.flush()
 
 async def perform_maintenance(bot: Bot, report_date: str):
-    """Exports activity log to admins and clears it."""
+    """Exports log files to admins and clears them after a successful send."""
     logger.info("Starting daily maintenance...")
     from database import db
     from admin import ADMIN_IDS
     from aiogram.types import FSInputFile
     import os
 
-    log_file = db.activity_log_file
+    seen_paths = set()
+    log_targets = []
+    for log_file, filename, caption in [
+        (db.activity_log_file, f"activity_report_{report_date}.log", f"Daily Activity Log - {report_date}"),
+        (db.runtime_log_file, f"runtime_report_{report_date}.log", f"Daily Runtime Log - {report_date}"),
+    ]:
+        normalized = os.path.abspath(log_file)
+        if normalized in seen_paths:
+            continue
+        seen_paths.add(normalized)
+        if os.path.exists(normalized) and os.path.getsize(normalized) > 0:
+            log_targets.append((normalized, filename, caption))
 
-    # 1. Send activity.log to Admins
-    sent_count = 0
-    for admin_id in ADMIN_IDS:
-        try:
-            if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
+    if not ADMIN_IDS:
+        if log_targets:
+            logger.warning("Daily maintenance skipped: no admins configured in ADMIN_IDS or ADMIN_ID.")
+            return False
+        return True
+
+    if not log_targets:
+        logger.info("Daily maintenance found no log files to send.")
+        return True
+
+    for log_file, filename, caption in log_targets:
+        sent_count = 0
+        for admin_id in ADMIN_IDS:
+            try:
                 await bot.send_document(
                     admin_id,
-                    FSInputFile(log_file),
-                    caption=f"📜 Daily Activity Log — {report_date}"
+                    FSInputFile(log_file, filename=filename),
+                    caption=caption
                 )
                 sent_count += 1
+            except Exception as e:
+                logger.error("Failed to send %s to %s: %s", log_file, admin_id, e)
+
+        if sent_count == 0:
+            return False
+
+    for log_file, _, _ in log_targets:
+        try:
+            _clear_log_file(log_file)
+            logger.info("Daily log sent and cleared: %s", log_file)
         except Exception as e:
-            logger.error(f"Failed to send activity log to {admin_id}: {e}")
-
-    if os.path.exists(log_file) and os.path.getsize(log_file) > 0 and sent_count == 0:
-        return False
-
-    # 2. Clear activity.log AFTER sending
-    try:
-        if os.path.exists(log_file):
-            open(log_file, 'w').close()
-            logger.info("Daily activity log sent and cleared: %s", log_file)
-    except Exception as e:
-        logger.error(f"Failed to clear activity.log: {e}")
-        return False
+            logger.error("Failed to clear log file %s: %s", log_file, e)
+            return False
 
     return True
+
+
+def _clear_log_file(log_file: str):
+    """Truncate a log file, reopening the active runtime file handler if needed."""
+    normalized = os.path.abspath(log_file)
+    root_logger = logging.getLogger()
+
+    for handler in root_logger.handlers:
+        if not isinstance(handler, logging.FileHandler):
+            continue
+        handler_file = os.path.abspath(getattr(handler, "baseFilename", ""))
+        if handler_file != normalized:
+            continue
+
+        handler.acquire()
+        try:
+            handler.flush()
+            handler.close()
+            with open(normalized, "w", encoding="utf-8"):
+                pass
+            handler.stream = handler._open()
+            return
+        finally:
+            handler.release()
+
+    with open(normalized, "w", encoding="utf-8"):
+        pass
 
 
 # Color QR - Button-based flow
@@ -1077,34 +1136,6 @@ class CustomAiohttpSession(AiohttpSession):
         return self._session
 
 
-async def keep_alive():
-    """
-    Simple web server to keep the bot alive on Render.
-    """
-    from aiohttp import web
-    
-    async def handle(request):
-        # Log the ping so we know it's working
-        # logger.info(f"Health check received from {request.remote}")
-        return web.Response(text="I am alive!")
-
-    app = web.Application()
-    app.router.add_get('/', handle)
-    app.router.add_get('/health', handle) # Add explicit health route
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    
-    # Render provides the PORT environment variable
-    port = int(os.environ.get("PORT", 10000)) # Default to 10000 for Render
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    
-    logger.info(f"✅ Keep-alive server started on port {port}")
-    
-    # Keep the runner alive
-    return runner
-
 async def main() -> None:
     """Start the bot."""
     if not TOKEN or TOKEN == "your_telegram_bot_token_here":
@@ -1124,8 +1155,6 @@ async def main() -> None:
     logger.info("Using activity log file: %s", db.activity_log_file)
 
     # Start background tasks
-    # Store runner to prevent GC
-    bot.web_runner = await keep_alive()
     asyncio.create_task(scheduled_maintenance(bot)) 
     
     # Start database flush task

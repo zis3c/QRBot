@@ -11,7 +11,6 @@ This guide provides detailed instructions on how to set up, configure, and deplo
     - [macOS](#macos)
 - [Configuration](#configuration)
 - [Docker Deployment](#docker-deployment)
-- [Cloud Deployment (Render)](#cloud-deployment-render)
 
 ---
 
@@ -111,7 +110,6 @@ QRBot uses environment variables for configuration. You can set these in your te
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `ADMIN_IDS` | Comma-separated list of Telegram User IDs for admin access. | `None` |
-| `PORT` | Web server port (for checking keep-alive status). | `10000` |
 
 ### Setting up .env (Local Development)
 
@@ -144,18 +142,3 @@ Docker is the easiest way to run QRBot in a consistent environment.
 
 ---
 
-## Cloud Deployment (Render)
-
-This repository is configured for easy deployment on [Render](https://render.com).
-
-1.  **Fork** this repository to your GitHub account.
-2.  Log in to **Render** and click **New +** -> **Web Service**.
-3.  Select your forked `QRBot` repository.
-4.  Render should automatically detect the `render.yaml` or `Dockerfile`.
-    - **Runtime**: Docker
-5.  **Environment Variables**:
-    - Add `TELEGRAM_BOT_TOKEN` (Required)
-    - Add `ADMIN_IDS` (Optional)
-6.  Click **Create Web Service**.
-
-The bot will start automatically and stay awake thanks to the built-in keep-alive server.

@@ -1,11 +1,25 @@
 import json
 import os
-from typing import Set, Dict, Any
+from typing import Set, Dict, Any, Optional
 
 DEFAULT_DB_FILE = "bot_data.json"
+DEFAULT_RUNTIME_LOG_FILE = "bot.log"
 DB_FILE_ENV = "QRBOT_DB_FILE"
 DATA_DIR_ENV = "QRBOT_DATA_DIR"
 ACTIVITY_LOG_ENV = "QRBOT_ACTIVITY_LOG_FILE"
+RUNTIME_LOG_ENV = "QRBOT_RUNTIME_LOG_FILE"
+
+
+def _resolve_data_dir() -> str:
+    """Resolve the preferred persistent data directory."""
+    data_dir = os.getenv(DATA_DIR_ENV)
+    if data_dir:
+        return os.path.abspath(data_dir)
+
+    if os.path.isdir("/var/data"):
+        return "/var/data"
+
+    return os.path.dirname(os.path.abspath(__file__))
 
 
 def _resolve_db_path() -> str:
@@ -14,15 +28,17 @@ def _resolve_db_path() -> str:
     if env_file:
         return os.path.abspath(env_file)
 
-    data_dir = os.getenv(DATA_DIR_ENV)
-    if data_dir:
-        return os.path.abspath(os.path.join(data_dir, DEFAULT_DB_FILE))
+    return os.path.join(_resolve_data_dir(), DEFAULT_DB_FILE)
 
-    # Render persistent disk mount path.
-    if os.path.isdir("/var/data"):
-        return "/var/data/bot_data.json"
 
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_DB_FILE)
+def resolve_runtime_log_path(base_dir: Optional[str] = None) -> str:
+    """Resolve runtime log path with persistent-storage-first strategy."""
+    env_file = os.getenv(RUNTIME_LOG_ENV)
+    if env_file:
+        return os.path.abspath(env_file)
+
+    root_dir = os.path.abspath(base_dir) if base_dir else _resolve_data_dir()
+    return os.path.join(root_dir, DEFAULT_RUNTIME_LOG_FILE)
 
 class Database:
     def __init__(self):
@@ -31,6 +47,7 @@ class Database:
         self.activity_log_file = os.path.abspath(
             os.getenv(ACTIVITY_LOG_ENV, os.path.join(self.data_dir, "activity.log"))
         )
+        self.runtime_log_file = resolve_runtime_log_path(self.data_dir)
         self.users: Dict[int, Dict[str, float]] = {} # user_id: {joined_at, last_active}
         self.banned: Set[int] = set()
         self.stats: Dict[str, Any] = {

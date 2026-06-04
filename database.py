@@ -22,6 +22,25 @@ def _resolve_data_dir() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def _can_write_to_dir(path: str) -> bool:
+    """Return True when the directory exists and current process can write to it."""
+    return os.path.isdir(path) and os.access(path, os.W_OK)
+
+
+def _resolve_writable_file_path(env_name: str, default_filename: str, base_dir: Optional[str] = None) -> str:
+    """Resolve file path from env, but fall back if parent directory is unavailable."""
+    env_file = os.getenv(env_name)
+    if env_file:
+        candidate = os.path.abspath(env_file)
+        parent_dir = os.path.dirname(candidate) or "."
+        if _can_write_to_dir(parent_dir):
+            return candidate
+        print(f"Warning: {env_name} directory not writable: {parent_dir}. Falling back to local data directory.")
+
+    root_dir = os.path.abspath(base_dir) if base_dir else _resolve_data_dir()
+    return os.path.join(root_dir, default_filename)
+
+
 def _resolve_db_path() -> str:
     """Resolve database path with persistent-storage-first strategy."""
     env_file = os.getenv(DB_FILE_ENV)
@@ -33,20 +52,13 @@ def _resolve_db_path() -> str:
 
 def resolve_runtime_log_path(base_dir: Optional[str] = None) -> str:
     """Resolve runtime log path with persistent-storage-first strategy."""
-    env_file = os.getenv(RUNTIME_LOG_ENV)
-    if env_file:
-        return os.path.abspath(env_file)
-
-    root_dir = os.path.abspath(base_dir) if base_dir else _resolve_data_dir()
-    return os.path.join(root_dir, DEFAULT_RUNTIME_LOG_FILE)
+    return _resolve_writable_file_path(RUNTIME_LOG_ENV, DEFAULT_RUNTIME_LOG_FILE, base_dir)
 
 class Database:
     def __init__(self):
         self.filename = _resolve_db_path()
         self.data_dir = os.path.dirname(self.filename) or "."
-        self.activity_log_file = os.path.abspath(
-            os.getenv(ACTIVITY_LOG_ENV, os.path.join(self.data_dir, "activity.log"))
-        )
+        self.activity_log_file = _resolve_writable_file_path(ACTIVITY_LOG_ENV, "activity.log", self.data_dir)
         self.runtime_log_file = resolve_runtime_log_path(self.data_dir)
         self.users: Dict[int, Dict[str, float]] = {} # user_id: {joined_at, last_active}
         self.banned: Set[int] = set()

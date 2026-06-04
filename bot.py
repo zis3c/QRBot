@@ -24,7 +24,6 @@ from states import TextQRStates, UrlQRStates, WifiQRStates, VCardQRStates, Encod
 import admin
 import notifications
 import time
-from database import resolve_runtime_log_path
 
 # Load environment variables
 load_dotenv()
@@ -55,15 +54,10 @@ except Exception:
     )
     MAINTENANCE_TZ = timezone(timedelta(hours=8))
 
-# Enable logging
-RUNTIME_LOG_FILE = resolve_runtime_log_path()
-os.makedirs(os.path.dirname(RUNTIME_LOG_FILE) or ".", exist_ok=True)
-
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
-    level=logging.INFO,
+    level=logging.WARNING,
     handlers=[
-        logging.FileHandler(RUNTIME_LOG_FILE, encoding="utf-8"),
         logging.StreamHandler()
     ]
 )
@@ -747,26 +741,14 @@ async def scheduled_maintenance(bot: Bot):
 
             due_now = current_clock >= maintenance_clock
             if due_now and last_maintenance_date != report_date:
-                logger.info(
-                    "Daily maintenance due for %s (last=%s). Running now.",
-                    report_date,
-                    last_maintenance_date or "none",
-                )
                 ok = await perform_maintenance(bot, report_date)
                 if ok:
                     db.set_last_maintenance_date(report_date)
-                    logger.info("Daily maintenance completed for %s.", report_date)
                     # After success, sleep until tomorrow's exact maintenance time.
                     next_run = (now + timedelta(days=1)).replace(
                         hour=MAINTENANCE_HOUR, minute=MAINTENANCE_MINUTE, second=0, microsecond=0
                     )
                     sleep_seconds = max((next_run - datetime.now(MAINTENANCE_TZ)).total_seconds(), 1)
-                    logger.info(
-                        "Next daily maintenance scheduled for %s (%s) in %.2f seconds.",
-                        next_run.strftime("%Y-%m-%d %H:%M:%S"),
-                        MAINTENANCE_TZ_NAME,
-                        sleep_seconds,
-                    )
                     await asyncio.sleep(sleep_seconds)
                     continue
                 else:
@@ -778,12 +760,6 @@ async def scheduled_maintenance(bot: Bot):
             if current_clock < maintenance_clock:
                 next_run = now.replace(hour=MAINTENANCE_HOUR, minute=MAINTENANCE_MINUTE, second=0, microsecond=0)
                 sleep_seconds = max((next_run - now).total_seconds(), 1)
-                logger.info(
-                    "Daily maintenance scheduled for %s (%s) in %.2f seconds.",
-                    next_run.strftime("%Y-%m-%d %H:%M:%S"),
-                    MAINTENANCE_TZ_NAME,
-                    sleep_seconds,
-                )
                 await asyncio.sleep(sleep_seconds)
             else:
                 # Already due but already completed for this report_date.
@@ -806,25 +782,18 @@ async def database_flush_task():
         db.flush()
 
 async def perform_maintenance(bot: Bot, report_date: str):
-    """Exports log files to admins and clears them after a successful send."""
-    logger.info("Starting daily maintenance...")
+    """Exports activity log to admins and clears it after a successful send."""
     from database import db
     from admin import ADMIN_IDS
     from aiogram.types import FSInputFile
     import os
 
-    seen_paths = set()
     log_targets = []
-    for log_file, filename, caption in [
-        (db.activity_log_file, f"activity_report_{report_date}.log", f"Daily Activity Log - {report_date}"),
-        (db.runtime_log_file, f"runtime_report_{report_date}.log", f"Daily Runtime Log - {report_date}"),
-    ]:
-        normalized = os.path.abspath(log_file)
-        if normalized in seen_paths:
-            continue
-        seen_paths.add(normalized)
-        if os.path.exists(normalized) and os.path.getsize(normalized) > 0:
-            log_targets.append((normalized, filename, caption))
+    log_file = os.path.abspath(db.activity_log_file)
+    if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
+        log_targets.append(
+            (log_file, f"activity_report_{report_date}.log", f"Daily Activity Log - {report_date}")
+        )
 
     if not ADMIN_IDS:
         if log_targets:
@@ -855,7 +824,6 @@ async def perform_maintenance(bot: Bot, report_date: str):
     for log_file, _, _ in log_targets:
         try:
             _clear_log_file(log_file)
-            logger.info("Daily log sent and cleared: %s", log_file)
         except Exception as e:
             logger.error("Failed to clear log file %s: %s", log_file, e)
             return False
@@ -864,29 +832,8 @@ async def perform_maintenance(bot: Bot, report_date: str):
 
 
 def _clear_log_file(log_file: str):
-    """Truncate a log file, reopening the active runtime file handler if needed."""
-    normalized = os.path.abspath(log_file)
-    root_logger = logging.getLogger()
-
-    for handler in root_logger.handlers:
-        if not isinstance(handler, logging.FileHandler):
-            continue
-        handler_file = os.path.abspath(getattr(handler, "baseFilename", ""))
-        if handler_file != normalized:
-            continue
-
-        handler.acquire()
-        try:
-            handler.flush()
-            handler.close()
-            with open(normalized, "w", encoding="utf-8"):
-                pass
-            handler.stream = handler._open()
-            return
-        finally:
-            handler.release()
-
-    with open(normalized, "w", encoding="utf-8"):
+    """Truncate a log file."""
+    with open(os.path.abspath(log_file), "w", encoding="utf-8"):
         pass
 
 
@@ -1106,9 +1053,8 @@ def warmup_task():
         import qr_generator
         # Generate a small QR to force imports
         qr_generator.generate_qr("warmup")
-        print("Worker process warmed up successfully.")
     except Exception as e:
-        print(f"Worker warmup failed: {e}")
+        logger.warning("Worker warmup failed: %s", e)
 
 async def main() -> None:
     """Start the bot."""
@@ -1150,9 +1096,6 @@ async def main() -> None:
     )
     session = CustomAiohttpSession(timeout=120.0, connector=connector)
     bot = Bot(token=TOKEN, session=session)
-    from database import db
-    logger.info("Using database file: %s", db.filename)
-    logger.info("Using activity log file: %s", db.activity_log_file)
 
     # Start background tasks
     asyncio.create_task(scheduled_maintenance(bot)) 
@@ -1174,7 +1117,6 @@ async def main() -> None:
     
     # Initialize Notifications
     notifications.notify = notifications.NotificationManager(bot)
-    await notifications.notify.send_alert('INFO', '🚀 Bot started successfully.')
 
     try:
         # Set bot commands
@@ -1199,11 +1141,8 @@ async def main() -> None:
         from database import db
         db.flush()
         process_pool.shutdown(wait=True)
-        if notifications.notify:
-            await notifications.notify.send_alert('INFO', '🛑 Bot stopped.')
-        logger.info("Bot stopped. Data saved and pool shutdown.")
+        notifications.notify = None
 
 if __name__ == "__main__":
-    print("SYSTEM: Bot script starting...", flush=True)
     asyncio.run(main())
 

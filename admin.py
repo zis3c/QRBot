@@ -47,20 +47,9 @@ def is_admin(user_id: int) -> bool:
 
 
 def _iter_available_logs(date_str: str):
-    seen_paths = set()
-    log_targets = [
-        (db.activity_log_file, f"activity_report_{date_str}.log", "Activity Log"),
-        (db.runtime_log_file, f"runtime_report_{date_str}.log", "Runtime Log"),
-    ]
-
-    for log_file, filename, label in log_targets:
-        normalized = os.path.abspath(log_file)
-        if normalized in seen_paths:
-            continue
-        seen_paths.add(normalized)
-
-        if os.path.exists(normalized) and os.path.getsize(normalized) > 0:
-            yield normalized, filename, label
+    normalized = os.path.abspath(db.activity_log_file)
+    if os.path.exists(normalized) and os.path.getsize(normalized) > 0:
+        yield normalized, f"activity_report_{date_str}.log", "Activity Log"
 
 
 @router.message(Command("admin"))

@@ -35,7 +35,6 @@ def _resolve_writable_file_path(env_name: str, default_filename: str, base_dir: 
         parent_dir = os.path.dirname(candidate) or "."
         if _can_write_to_dir(parent_dir):
             return candidate
-        print(f"Warning: {env_name} directory not writable: {parent_dir}. Falling back to local data directory.")
 
     root_dir = os.path.abspath(base_dir) if base_dir else _resolve_data_dir()
     return os.path.join(root_dir, default_filename)

@@ -43,7 +43,6 @@ jobs:
               --exclude ".venv/" \
               --exclude "bot_data.json" \
               --exclude "activity.log" \
-              --exclude "bot.log" \
               /tmp/qrbot-deploy/ /opt/qrbot/
 
             chown -R deploy:deploy /opt/qrbot
@@ -51,6 +50,7 @@ jobs:
             sudo -u deploy -H bash -lc '
               set -e
               cd /opt/qrbot
+              rm -f bot.log
               python3 -m venv .venv
               .venv/bin/pip install --upgrade pip
               .venv/bin/pip install -r requirements.txt

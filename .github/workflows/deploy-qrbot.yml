@@ -25,7 +25,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "."
-          target: "/opt/qrbot"
+          target: "/tmp/qrbot-deploy"
           rm: true
           strip_components: 0
 
@@ -38,6 +38,14 @@ jobs:
           script: |
             set -e
 
+            mkdir -p /opt/qrbot
+            rsync -a --delete \
+              --exclude ".venv/" \
+              --exclude "bot_data.json" \
+              --exclude "activity.log" \
+              --exclude "bot.log" \
+              /tmp/qrbot-deploy/ /opt/qrbot/
+
             chown -R deploy:deploy /opt/qrbot
 
             sudo -u deploy -H bash -lc '
@@ -47,6 +55,8 @@ jobs:
               .venv/bin/pip install --upgrade pip
               .venv/bin/pip install -r requirements.txt
             '
+
+            rm -rf /tmp/qrbot-deploy
 
             systemctl daemon-reload
             systemctl restart qrbot.service

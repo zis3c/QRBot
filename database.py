@@ -520,7 +520,8 @@ class Database:
         log_entry = f"[{timestamp}] {role}: {name} | ACTION: {action} | {details}\n"
         try:
             os.makedirs(os.path.dirname(self.activity_log_file), exist_ok=True)
-            with open(self.activity_log_file, "a", encoding="utf-8") as handle:
+            encoding = "utf-8-sig" if not os.path.exists(self.activity_log_file) or os.path.getsize(self.activity_log_file) == 0 else "utf-8"
+            with open(self.activity_log_file, "a", encoding=encoding) as handle:
                 handle.write(log_entry)
         except Exception as e:
             print(f"⚠️ Failed to write activity log: {e}")

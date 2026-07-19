@@ -628,23 +628,33 @@ async def qr_reader_command(message: types.Message, state: FSMContext):
     await state.set_state(QRReaderStates.waiting_for_image)
     await message.reply(strings.PROMPT_UPLOAD_QR, parse_mode='Markdown')
 
-@dp.message(QRReaderStates.waiting_for_image, F.photo)
+@dp.message(QRReaderStates.waiting_for_image, F.photo | F.document)
 async def process_qr_image(message: types.Message, state: FSMContext, bot: Bot):
-    """Handle photo upload for QR Reader."""
+    """Handle image upload for QR Reader."""
     await state.clear()
     await qr_reader_handler(message, bot, state)
 
-@dp.message(F.photo & F.caption.startswith('/readerqr'))
+@dp.message((F.photo | F.document) & F.caption.startswith('/readerqr'))
 async def qr_reader_handler(message: types.Message, bot: Bot, state: FSMContext):
-    """Handle photo messages to read QR codes."""
+    """Handle image messages to read QR codes."""
     try:
         status_msg = await message.reply(strings.STATUS_SCANNING)
 
-        # Get the largest photo
-        photo = message.photo[-1]
+        image_file = None
+        file_size = None
+        if message.photo:
+            image_file = message.photo[-1]
+            file_size = image_file.file_size
+        elif message.document:
+            mime_type = message.document.mime_type or ""
+            if not mime_type.startswith("image/"):
+                await message.reply(strings.ERROR_QR_READ_FAILED)
+                return
+            image_file = message.document
+            file_size = image_file.file_size
         
         # Check file size (Limit: 5MB)
-        if photo.file_size and photo.file_size > 5 * 1024 * 1024:
+        if file_size and file_size > 5 * 1024 * 1024:
             await message.reply(strings.ERROR_FILE_TOO_LARGE)
             return
 
@@ -653,7 +663,7 @@ async def qr_reader_handler(message: types.Message, bot: Bot, state: FSMContext)
         # But we need to use the bot instance to download
         from io import BytesIO
         bio = BytesIO()
-        await bot.download(photo, destination=bio)
+        await bot.download(image_file, destination=bio)
         bio.seek(0)
         
         # Read QR in a separate process

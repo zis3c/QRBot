@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 import time
 
 import psutil
@@ -50,6 +51,28 @@ def _iter_available_logs(date_str: str):
     normalized = os.path.abspath(db.activity_log_file)
     if os.path.exists(normalized) and os.path.getsize(normalized) > 0:
         yield normalized, f"activity_report_{date_str}.log", "Activity Log"
+
+
+def _repair_mojibake(text: str) -> str:
+    if not any(marker in text for marker in ("ðŸ", "âœ", "âš", "â", "ï¸")):
+        return text
+
+    try:
+        return text.encode("cp1252").decode("utf-8")
+    except UnicodeError:
+        return text
+
+
+def _prepare_log_download(log_file: str) -> str:
+    with open(log_file, "r", encoding="utf-8-sig", errors="replace") as handle:
+        content = _repair_mojibake(handle.read())
+
+    temp = tempfile.NamedTemporaryFile("w", encoding="utf-8-sig", suffix=".log", delete=False)
+    try:
+        temp.write(content)
+        return temp.name
+    finally:
+        temp.close()
 
 
 @router.message(Command("admin"))
@@ -247,13 +270,23 @@ async def get_logs(message: types.Message):
 
     date_str = datetime.now().strftime("%Y-%m-%d")
     sent_any = False
+    temp_files = []
 
-    for log_file, filename, label in _iter_available_logs(date_str):
-        await message.reply_document(
-            FSInputFile(log_file, filename=filename),
-            caption=f"{label} - {date_str}",
-        )
-        sent_any = True
+    try:
+        for log_file, filename, label in _iter_available_logs(date_str):
+            download_file = _prepare_log_download(log_file)
+            temp_files.append(download_file)
+            await message.reply_document(
+                FSInputFile(download_file, filename=filename),
+                caption=f"{label} - {date_str}",
+            )
+            sent_any = True
+    finally:
+        for temp_file in temp_files:
+            try:
+                os.unlink(temp_file)
+            except OSError:
+                pass
 
     if not sent_any:
         await message.reply("No log files are available yet.")

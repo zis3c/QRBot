@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from pyzbar.pyzbar import decode, ZBarSymbol
 import html
+from collections import Counter
 
 def _decode_payload(data: bytes) -> str:
     """Decode QR payload bytes without turning non-UTF-8 QR data into failures."""
@@ -13,14 +14,22 @@ def _decode_payload(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
-def _result_from_values(values):
-    unique_values = []
-    seen = set()
+def _clean_values(values):
+    cleaned = []
     for value in values:
         if not value:
             continue
         normalized = value.strip()
-        if normalized and normalized not in seen:
+        if normalized:
+            cleaned.append(normalized)
+    return cleaned
+
+
+def _result_from_values(values):
+    unique_values = []
+    seen = set()
+    for normalized in _clean_values(values):
+        if normalized not in seen:
             seen.add(normalized)
             unique_values.append(normalized)
 
@@ -44,12 +53,29 @@ def read_qr(image_bytes):
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             return 'error', None
+
+        candidates = []
+
+        def remember(values):
+            candidates.extend(_clean_values(values))
+
+        def best_candidate():
+            if not candidates:
+                return None, None
+
+            counts = Counter(candidates)
+            best_value, best_count = counts.most_common(1)[0]
+            if best_count >= 2 or len(counts) == 1:
+                return "success", best_value
+            return "multiple", None
             
         # Helper to process and detect with pyzbar
         def try_detect_pyzbar(image):
             decoded_objects = decode(image, symbols=[ZBarSymbol.QRCODE])
             if decoded_objects:
-                return _result_from_values(_decode_payload(obj.data) for obj in decoded_objects if obj.data)
+                values = [_decode_payload(obj.data) for obj in decoded_objects if obj.data]
+                remember(values)
+                return _result_from_values(values)
             return None, None
 
         detector = cv2.QRCodeDetector()
@@ -70,49 +96,53 @@ def read_qr(image_bytes):
             except cv2.error:
                 pass
 
+            remember(values)
             return _result_from_values(values)
 
         # 1. Try Original with pyzbar
         status, data = try_detect_pyzbar(img)
-        if status: return status, data
+        if status == "success": return status, data
         status, data = try_detect_opencv(img)
-        if status: return status, data
+        if status == "success": return status, data
         
         # 2. Try Grayscale with pyzbar
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         status, data = try_detect_pyzbar(gray)
-        if status: return status, data
+        if status == "success": return status, data
         status, data = try_detect_opencv(gray)
-        if status: return status, data
+        if status == "success": return status, data
         
         # 3. Try Thresholding (Otsu) with pyzbar
         _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         status, data = try_detect_pyzbar(thresh)
-        if status: return status, data
+        if status == "success": return status, data
         status, data = try_detect_opencv(thresh)
-        if status: return status, data
+        if status == "success": return status, data
         
         # 4. Try Resize (Upscale)
         for scale in (2.0, 3.0, 4.0):
             upscaled = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
             status, data = try_detect_pyzbar(upscaled)
-            if status: return status, data
+            if status == "success": return status, data
             status, data = try_detect_opencv(upscaled)
-            if status: return status, data
+            if status == "success": return status, data
 
         # 5. Try denoise and sharpen for camera photos / screenshots
         denoised = cv2.fastNlMeansDenoising(gray, h=10)
         sharpened = cv2.addWeighted(denoised, 1.7, cv2.GaussianBlur(denoised, (0, 0), 1.2), -0.7, 0)
         status, data = try_detect_pyzbar(sharpened)
-        if status: return status, data
+        if status == "success": return status, data
         status, data = try_detect_opencv(sharpened)
-        if status: return status, data
+        if status == "success": return status, data
 
         # 6. Try Inverted (for white on black)
         inverted = cv2.bitwise_not(gray)
         status, data = try_detect_pyzbar(inverted)
-        if status: return status, data
+        if status == "success": return status, data
         status, data = try_detect_opencv(inverted)
+        if status == "success": return status, data
+
+        status, data = best_candidate()
         if status: return status, data
 
         return 'none', None

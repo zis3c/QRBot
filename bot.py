@@ -647,7 +647,9 @@ async def qr_reader_handler(message: types.Message, bot: Bot, state: FSMContext)
             file_size = image_file.file_size
         elif message.document:
             mime_type = message.document.mime_type or ""
-            if not mime_type.startswith("image/"):
+            file_name = (message.document.file_name or "").lower()
+            image_extensions = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".jxl")
+            if not mime_type.startswith("image/") and not file_name.endswith(image_extensions):
                 await message.reply(strings.ERROR_QR_READ_FAILED)
                 return
             image_file = message.document

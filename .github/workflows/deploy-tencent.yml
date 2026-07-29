@@ -58,6 +58,5 @@ jobs:
 
             rm -rf /tmp/qrbot-deploy
 
-            sudo -n /usr/bin/systemctl daemon-reload
             sudo -n /usr/bin/systemctl restart qrbot.service
             sudo -n /usr/bin/systemctl is-active --quiet qrbot.service

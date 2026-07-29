@@ -1,4 +1,4 @@
-name: Deploy QRBot to VPS
+name: Deploy QRBot to Tencent
 
 on:
   push:
@@ -18,12 +18,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Copy project files to VPS
+      - name: Copy project files to Tencent
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          host: ${{ secrets.TENCENT_HOST }}
+          username: ${{ secrets.TENCENT_USER }}
+          key: ${{ secrets.TENCENT_SSH_KEY }}
           source: "."
           target: "/tmp/qrbot-deploy"
           rm: true
@@ -32,9 +32,9 @@ jobs:
       - name: Install dependencies and restart service
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          host: ${{ secrets.TENCENT_HOST }}
+          username: ${{ secrets.TENCENT_USER }}
+          key: ${{ secrets.TENCENT_SSH_KEY }}
           script: |
             set -e
 
@@ -61,6 +61,6 @@ jobs:
 
             rm -rf /tmp/qrbot-deploy
 
-            systemctl daemon-reload
-            systemctl restart qrbot.service
-            systemctl is-active --quiet qrbot.service
+            sudo -n /usr/bin/systemctl daemon-reload
+            sudo -n /usr/bin/systemctl restart qrbot.service
+            sudo -n /usr/bin/systemctl is-active --quiet qrbot.service

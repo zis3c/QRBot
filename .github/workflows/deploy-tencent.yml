@@ -50,14 +50,11 @@ jobs:
 
             chown -R deploy:deploy /opt/qrbot
 
-            sudo -u deploy -H bash -lc '
-              set -e
-              cd /opt/qrbot
-              rm -f bot.log
-              python3 -m venv .venv
-              .venv/bin/pip install --upgrade pip
-              .venv/bin/pip install -r requirements.txt
-            '
+            cd /opt/qrbot
+            rm -f bot.log
+            python3 -m venv .venv
+            .venv/bin/pip install --upgrade pip
+            .venv/bin/pip install -r requirements.txt
 
             rm -rf /tmp/qrbot-deploy
 
